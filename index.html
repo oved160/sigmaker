@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SigMaker — Free HTML Email Signature Generator</title>
+  <meta name="description" content="Create clean, responsive HTML email signatures for free. No account, no tracking — everything stays in your browser." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">S</span>
+      <span class="brand-name">SigMaker</span>
+    </div>
+    <p class="brand-tag">Free email signatures. No account. No tracking.</p>
+  </header>
+
+  <main class="layout">
+    <!-- LEFT: controls -->
+    <section class="panel controls" aria-label="Signature details">
+      <div class="intro">
+        <h1>Make a signature you're proud to send.</h1>
+        <p>Fill in what you need, skip what you don't. Everything happens in your browser — your details are never sent to a server.</p>
+      </div>
+
+      <fieldset class="group">
+        <legend>Template</legend>
+        <div class="templates" role="radiogroup" id="templates"></div>
+      </fieldset>
+
+      <fieldset class="group">
+        <legend>About you</legend>
+        <div class="grid">
+          <label class="field">
+            <span>Full name</span>
+            <input type="text" data-key="name" autocomplete="name" placeholder="Astrid Lindqvist" />
+          </label>
+          <label class="field">
+            <span>Job title</span>
+            <input type="text" data-key="title" autocomplete="organization-title" placeholder="Product Designer" />
+          </label>
+          <label class="field">
+            <span>Company</span>
+            <input type="text" data-key="company" autocomplete="organization" placeholder="Nordvik Studio" />
+          </label>
+          <label class="field">
+            <span>Pronouns <em>optional</em></span>
+            <input type="text" data-key="pronouns" placeholder="she/her" />
+          </label>
+        </div>
+      </fieldset>
+
+      <fieldset class="group">
+        <legend>Contact</legend>
+        <div class="grid">
+          <label class="field">
+            <span>Email</span>
+            <input type="email" data-key="email" autocomplete="email" placeholder="astrid@nordvik.studio" />
+          </label>
+          <label class="field">
+            <span>Phone</span>
+            <input type="tel" data-key="phone" autocomplete="tel" placeholder="+46 70 123 45 67" />
+          </label>
+          <label class="field">
+            <span>Website</span>
+            <input type="url" data-key="website" autocomplete="url" placeholder="nordvik.studio" />
+          </label>
+          <label class="field">
+            <span>Location</span>
+            <input type="text" data-key="address" placeholder="Stockholm, Sweden" />
+          </label>
+        </div>
+      </fieldset>
+
+      <fieldset class="group">
+        <legend>Profiles</legend>
+        <div class="grid">
+          <label class="field">
+            <span>LinkedIn</span>
+            <input type="url" data-key="linkedin" placeholder="linkedin.com/in/astrid" />
+          </label>
+          <label class="field">
+            <span>GitHub</span>
+            <input type="url" data-key="github" placeholder="github.com/astrid" />
+          </label>
+          <label class="field">
+            <span>X / Twitter</span>
+            <input type="url" data-key="twitter" placeholder="x.com/astrid" />
+          </label>
+          <label class="field">
+            <span>Portfolio / Other</span>
+            <input type="url" data-key="portfolio" placeholder="dribbble.com/astrid" />
+          </label>
+        </div>
+      </fieldset>
+
+      <fieldset class="group">
+        <legend>Photo or logo</legend>
+        <div class="upload" id="upload">
+          <div class="upload-thumb" id="uploadThumb" aria-hidden="true"></div>
+          <div class="upload-body">
+            <div class="upload-actions">
+              <label class="btn small">
+                <input type="file" id="photoFile" accept="image/png,image/jpeg,image/webp,image/gif" hidden />
+                <span id="uploadLabel">Upload image</span>
+              </label>
+              <button type="button" class="link-btn" id="photoRemove" hidden>Remove</button>
+            </div>
+            <p class="upload-status" id="uploadStatus">PNG, JPG or WebP. Resized in your browser before upload.</p>
+          </div>
+        </div>
+        <label class="field full upload-url">
+          <span>…or paste an image link</span>
+          <input type="url" data-key="photo" placeholder="https://…/headshot.jpg" />
+        </label>
+        <div class="row">
+          <label class="field">
+            <span>Shape</span>
+            <select data-key="photoShape">
+              <option value="circle">Circle</option>
+              <option value="rounded">Rounded</option>
+              <option value="square">Square</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Fit</span>
+            <select data-key="photoFit">
+              <option value="cover">Crop to fill</option>
+              <option value="contain">Whole image</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Size</span>
+            <input type="range" data-key="photoSize" min="48" max="120" step="4" />
+          </label>
+        </div>
+        <p class="hint">Email clients can only show images that live online, so an uploaded image is stored at a random, unguessable link. Nothing else about you is sent anywhere.</p>
+      </fieldset>
+
+      <fieldset class="group">
+        <legend>Style</legend>
+        <div class="field">
+          <span>Accent colour</span>
+          <div class="swatches" id="swatches"></div>
+        </div>
+        <div class="row">
+          <label class="field">
+            <span>Font</span>
+            <select data-key="font">
+              <option value="Helvetica, Arial, sans-serif">Helvetica / Arial</option>
+              <option value="Georgia, 'Times New Roman', serif">Georgia</option>
+              <option value="Verdana, Geneva, sans-serif">Verdana</option>
+              <option value="'Trebuchet MS', Helvetica, sans-serif">Trebuchet</option>
+              <option value="Tahoma, Geneva, sans-serif">Tahoma</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Text size</span>
+            <select data-key="fontSize">
+              <option value="12">Small</option>
+              <option value="13">Medium</option>
+              <option value="14">Large</option>
+            </select>
+          </label>
+        </div>
+      </fieldset>
+
+      <fieldset class="group">
+        <legend>Extras</legend>
+        <label class="field full">
+          <span>Sign-off line <em>optional</em></span>
+          <input type="text" data-key="signoff" placeholder="Warm regards," />
+        </label>
+        <label class="field full">
+          <span>Call to action <em>optional</em></span>
+          <input type="text" data-key="ctaText" placeholder="Book a 15-min call" />
+        </label>
+        <label class="field full">
+          <span>Call to action link</span>
+          <input type="url" data-key="ctaUrl" placeholder="https://cal.com/astrid" />
+        </label>
+        <label class="field full">
+          <span>Disclaimer / note <em>optional</em></span>
+          <textarea data-key="disclaimer" rows="2" placeholder="Currently open to new opportunities."></textarea>
+        </label>
+      </fieldset>
+
+      <div class="privacy-row">
+        <label class="toggle">
+          <input type="checkbox" id="remember" />
+          <span class="toggle-ui" aria-hidden="true"></span>
+          <span>Remember my details on this device</span>
+        </label>
+        <button type="button" class="link-btn" id="reset">Clear all</button>
+      </div>
+    </section>
+
+    <!-- RIGHT: preview -->
+    <aside class="preview-col" aria-label="Live preview">
+      <div class="sticky">
+        <div class="preview-head">
+          <h2>Live preview</h2>
+          <div class="seg" role="group" aria-label="Preview width">
+            <button type="button" class="seg-btn is-active" data-view="desktop">Desktop</button>
+            <button type="button" class="seg-btn" data-view="mobile">Mobile</button>
+          </div>
+        </div>
+
+        <div class="mail" id="mail">
+          <div class="mail-bar">
+            <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+          </div>
+          <div class="mail-meta">
+            <div><span class="k">To</span> hiring@company.com</div>
+            <div><span class="k">Subject</span> Following up on our conversation</div>
+          </div>
+          <div class="mail-body">
+            <p class="mail-text">Hi there,<br />Thanks for your time today — looking forward to hearing from you.</p>
+            <div id="preview" class="sig-out"></div>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button type="button" class="btn primary" id="copyRich">Copy signature</button>
+          <button type="button" class="btn" id="copyHtml">Copy HTML</button>
+          <button type="button" class="btn" id="download">Download .html</button>
+        </div>
+        <p class="status" id="status" role="status" aria-live="polite"></p>
+
+        <details class="howto">
+          <summary>How to install your signature</summary>
+          <dl>
+            <dt>Gmail</dt>
+            <dd>Settings → See all settings → General → Signature → Create new. Click <b>Copy signature</b> above and paste into the box.</dd>
+            <dt>Outlook (web / new Outlook)</dt>
+            <dd>Settings → Mail → Compose and reply → Email signature. Paste with <b>Copy signature</b>.</dd>
+            <dt>Apple Mail</dt>
+            <dd>Settings → Signatures → +. Untick “Always match my default message font”, then paste.</dd>
+            <dt>Other clients</dt>
+            <dd>If your client accepts raw HTML, use <b>Copy HTML</b> or <b>Download .html</b>.</dd>
+          </dl>
+        </details>
+      </div>
+    </aside>
+  </main>
+
+  <footer class="site-footer">
+    <p>SigMaker runs in your browser. No accounts, cookies, or analytics — the only thing ever uploaded is an image you choose to host.</p>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
