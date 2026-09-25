@@ -16,7 +16,7 @@ The endpoint accepts only PNG/JPEG up to 512 KB, verifies the file's magic bytes
 
 1. Push this folder to a GitHub repo, then **Add New → Project** on vercel.com and import it (framework preset: **Other**, no build command).
    Or from this folder: `npx vercel` and follow the prompts.
-2. In the project, open **Storage → Create → Blob**, choose **Public** access, and connect it to the project. This adds the `BLOB_READ_WRITE_TOKEN` environment variable.
+2. In the project, open **Storage → Create → Blob**, choose **Public** access and the **Frankfurt (fra1)** region (matching the function region in `vercel.json`), and connect it to the project. This adds the `BLOB_READ_WRITE_TOKEN` environment variable.
 3. Redeploy so the function picks up the token.
 
 Without step 2 the site still works; uploads fall back to embedded images.
