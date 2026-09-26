@@ -69,13 +69,29 @@
     const withScheme = /^[a-z][a-z0-9+.-]*:/i.test(v) ? v : 'https://' + v.replace(/^\/+/, '');
     try {
       const u = new URL(withScheme);
-      return (u.protocol === 'http:' || u.protocol === 'https:') ? u.href : '';
+      // Require a real-looking host ("example.com"), not just a word.
+      return (u.protocol === 'http:' || u.protocol === 'https:') && /\.[a-z]{2,}$/i.test(u.hostname) ? u.href : '';
     } catch { return ''; }
   }
+
+  // Profile fields also accept a bare handle ("astrid" or "@astrid").
+  const PROFILE_BASE = { linkedin: 'linkedin.com/in/', github: 'github.com/', twitter: 'x.com/' };
+  function profileUrl(key, raw) {
+    const v = String(raw || '').trim();
+    const handle = v.replace(/^@/, '');
+    if (PROFILE_BASE[key] && /^[a-z0-9][a-z0-9_-]{0,99}$/i.test(handle)) return toUrl(PROFILE_BASE[key] + handle);
+    return toUrl(v);
+  }
+
+  const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i;
+  const PHONE_RE = /^\+?[\d\s().\-\/]+$/;
   const prettyUrl = href => href.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '');
   const telHref = p => 'tel:' + p.replace(/[^\d+]/g, '');
   const mailHref = e => 'mailto:' + encodeURIComponent(e.trim()).replace(/%40/g, '@');
   const isHex = c => /^#[0-9a-f]{6}$/i.test(c);
+  // Rounded-corner radius as a fraction of the photo's side. Uploads bake the
+  // same ratio into the image, so baked and CSS corners line up.
+  const ROUNDED_RATIO = 1 / 6;
   const isImageData = d => /^data:image\/(png|jpeg);base64,[A-Za-z0-9+/=]+$/.test(String(d || ''));
 
   // ---------- Data shaping ----------
@@ -88,20 +104,21 @@
     const accent = isHex(s.accent) ? s.accent : '#2C2C2C';
     const fs = Number(s.fontSize) || 13;
     const photoSize = Math.min(120, Math.max(48, Number(s.photoSize) || 72));
-    const radius = s.photoShape === 'circle' ? '50%' : s.photoShape === 'rounded' ? '12px' : '0';
+    const radius = s.photoShape === 'circle' ? '50%'
+      : s.photoShape === 'rounded' ? `${Math.round(photoSize * ROUNDED_RATIO)}px` : '0';
     const iconStyle = ICON_STYLES.some(x => x.id === s.iconStyle) ? s.iconStyle : 'line';
     const iconSet = ICON_SETS.includes(iconStyle) ? iconStyle : '';
 
     const contacts = [];
-    if (s.phone.trim()) contacts.push({ label: 'P', word: 'Phone', icon: 'phone', text: s.phone.trim(), href: telHref(s.phone) });
-    if (s.email.trim()) contacts.push({ label: 'E', word: 'Email', icon: 'email', text: s.email.trim(), href: mailHref(s.email) });
+    if (s.phone.trim()) contacts.push({ label: 'P', word: 'Phone', icon: 'phone', text: s.phone.trim(), href: PHONE_RE.test(s.phone.trim()) ? telHref(s.phone) : '' });
+    if (EMAIL_RE.test(s.email.trim())) contacts.push({ label: 'E', word: 'Email', icon: 'email', text: s.email.trim(), href: mailHref(s.email) });
     const site = toUrl(s.website);
     if (site) contacts.push({ label: 'W', word: 'Web', icon: 'website', text: prettyUrl(site), href: site });
     if (s.address.trim()) contacts.push({ label: 'A', word: 'Based in', icon: 'location', text: s.address.trim(), href: '' });
 
     const socials = [
-      ['LinkedIn', 'linkedin', s.linkedin], ['GitHub', 'github', s.github], ['X', 'x', s.twitter], ['Portfolio', 'link', s.portfolio],
-    ].map(([label, icon, v]) => ({ label, icon, href: toUrl(v) })).filter(x => x.href);
+      ['LinkedIn', 'linkedin', 'linkedin'], ['GitHub', 'github', 'github'], ['X', 'x', 'twitter'], ['Portfolio', 'link', 'portfolio'],
+    ].map(([label, icon, key]) => ({ label, icon, href: profileUrl(key, s[key]) })).filter(x => x.href);
 
     return {
       iconStyle, iconSet,
@@ -387,7 +404,63 @@
       ? signatureHtml()
       : '<p class="sig-empty">Start typing on the left — your signature will appear here.</p>';
     syncPhotoUI();
+    updateHints();
     persist();
+  }
+
+  // ---------- Field hints ----------
+  // Invalid values are left out of the signature; say so instead of silently dropping them.
+  const touched = new Set();
+
+  function fieldIssue(key) {
+    const v = String(state[key] || '').trim();
+    const hasCtaText = !!String(state.ctaText || '').trim();
+    const hasCtaUrl = !!toUrl(state.ctaUrl);
+    switch (key) {
+      case 'email':
+        return v && !EMAIL_RE.test(v) ? 'This doesn’t look like an email address, so it’s left out.' : '';
+      case 'phone':
+        return v && !PHONE_RE.test(v) ? 'Use only digits, spaces and + ( ) - so tap-to-call works.' : '';
+      case 'linkedin': case 'github': case 'twitter':
+        return v && !profileUrl(key, v) ? 'Enter a profile link or username — this one is left out.' : '';
+      case 'website': case 'portfolio': case 'photo':
+        return v && !toUrl(v) ? 'Enter a web address like example.com — this one is left out.' : '';
+      case 'ctaUrl':
+        if (v && !hasCtaUrl) return 'Enter a web address like cal.com/you — the button is hidden until then.';
+        return !v && hasCtaText ? 'Add a link — the button only appears once it has one.' : '';
+      case 'ctaText':
+        return !v && hasCtaUrl ? 'Add button text — the button only appears once it has some.' : '';
+      default:
+        return '';
+    }
+  }
+
+  // The two call-to-action fields depend on each other.
+  const PARTNER = { ctaUrl: 'ctaText', ctaText: 'ctaUrl' };
+
+  function updateHints() {
+    document.querySelectorAll('[data-key]').forEach(el => {
+      const key = el.dataset.key;
+      const hint = document.getElementById(`hint-${key}`);
+      if (!hint) return;
+      const show = touched.has(key) || touched.has(PARTNER[key]);
+      const msg = show ? fieldIssue(key) : '';
+      hint.textContent = msg;
+      hint.hidden = !msg;
+      el.setAttribute('aria-invalid', String(!!msg));
+    });
+  }
+
+  function addHintSlots() {
+    ['email', 'phone', 'website', 'linkedin', 'github', 'twitter', 'portfolio', 'photo', 'ctaText', 'ctaUrl'].forEach(key => {
+      const el = document.querySelector(`[data-key="${key}"]`);
+      const hint = document.createElement('small');
+      hint.className = 'field-hint';
+      hint.id = `hint-${key}`;
+      hint.hidden = true;
+      el.insertAdjacentElement('afterend', hint);
+      el.setAttribute('aria-describedby', hint.id);
+    });
   }
 
   // ---------- Photo upload ----------
@@ -399,6 +472,7 @@
   const uploadStatus = $('#uploadStatus');
   const DEFAULT_UPLOAD_MSG = uploadStatus.textContent;
   const EMBED_MSG = 'Couldn’t host the image, so it’s embedded in the signature. That works in Apple Mail and Outlook desktop, but Gmail removes embedded images — for Gmail, paste a hosted image link below.';
+  const HOSTED_MSG = 'Image hosted — it will show in Gmail, Outlook and Apple Mail, with its shape built in.';
   let lastFile = null;
   let uploadSeq = 0;
 
@@ -412,25 +486,49 @@
     const thumb = $('#uploadThumb');
     thumb.style.backgroundImage = src ? `url("${src.replace(/"/g, '%22')}")` : '';
     thumb.style.backgroundSize = state.photoFit === 'contain' ? 'contain' : 'cover';
-    thumb.style.borderRadius = state.photoShape === 'circle' ? '50%' : state.photoShape === 'rounded' ? '12px' : '4px';
+    thumb.style.borderRadius = state.photoShape === 'circle' ? '50%' : state.photoShape === 'rounded' ? '10px' : '4px';
     $('#photoRemove').hidden = !src;
     $('#uploadLabel').textContent = src ? 'Replace image' : 'Upload image';
   }
 
-  async function prepareImage(file, fit) {
+  async function loadImage(file) {
+    if (window.createImageBitmap) {
+      try {
+        const bmp = await createImageBitmap(file);
+        return { src: bmp, sw: bmp.width, sh: bmp.height };
+      } catch { /* fall through (e.g. older Safari with some formats) */ }
+    }
     const objUrl = URL.createObjectURL(file);
-    const img = new Image();
-    img.src = objUrl;
-    try { await img.decode(); } finally { URL.revokeObjectURL(objUrl); }
+    try {
+      const img = new Image();
+      await new Promise((resolve, reject) => { img.onload = resolve; img.onerror = reject; img.src = objUrl; });
+      return { src: img, sw: img.naturalWidth, sh: img.naturalHeight };
+    } finally { URL.revokeObjectURL(objUrl); }
+  }
+
+  async function prepareImage(file, fit, shape) {
+    const { src: img, sw, sh } = await loadImage(file);
 
     const canvas = document.createElement('canvas');
     canvas.width = canvas.height = IMG_PX;
     const ctx = canvas.getContext('2d');
     ctx.imageSmoothingQuality = 'high';
-    const { naturalWidth: sw, naturalHeight: sh } = img;
-    // Logos keep transparency as PNG; photos become compact JPEGs on white.
-    const type = fit === 'contain' && file.type !== 'image/jpeg' ? 'image/png' : 'image/jpeg';
-    if (type === 'image/jpeg') { ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0, 0, IMG_PX, IMG_PX); }
+
+    // Outlook for Windows ignores border-radius, so round/rounded shapes are cut
+    // into the image itself (transparent corners, hence PNG). Square photos stay
+    // compact JPEGs on white; square logos keep their transparency.
+    const shaped = shape === 'circle' || shape === 'rounded';
+    const transparent = shaped || (fit === 'contain' && file.type !== 'image/jpeg');
+    const type = transparent ? 'image/png' : 'image/jpeg';
+
+    if (shaped) {
+      ctx.beginPath();
+      if (shape === 'circle') ctx.arc(IMG_PX / 2, IMG_PX / 2, IMG_PX / 2, 0, Math.PI * 2);
+      else ctx.roundRect(0, 0, IMG_PX, IMG_PX, IMG_PX * ROUNDED_RATIO);
+      ctx.clip();
+    }
+    // Photos get a white backing so transparent PNG sources don't show holes.
+    if (fit !== 'contain' || !transparent) { ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0, 0, IMG_PX, IMG_PX); }
 
     if (fit === 'contain') {
       const s = Math.min(IMG_PX / sw, IMG_PX / sh);
@@ -447,23 +545,43 @@
     if (!/^https?:$/.test(location.protocol)) throw new Error('Not served over http');
     const res = await fetch('/api/upload', { method: 'POST', headers: { 'content-type': blob.type }, body: blob });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok || !data.url) throw new Error(data.error || `Upload failed (${res.status})`);
+    if (!res.ok || !data.url) {
+      const err = new Error(data.error || `Upload failed (${res.status})`);
+      err.status = res.status;
+      throw err;
+    }
     return data.url;
   }
+
+  // Hosted URLs for the current file, per fit+shape, so toggling back and
+  // forth between options doesn't upload the same image again.
+  let variants = new Map();
 
   async function handleFile(file) {
     if (!file) return;
     if (!/^image\/(png|jpeg|webp|gif)$/.test(file.type)) return setUploadStatus('Please choose a PNG, JPG or WebP image.', 'warn');
     if (file.size > 15 * 1024 * 1024) return setUploadStatus('That image is over 15 MB — please pick a smaller one.', 'warn');
 
+    if (file !== lastFile) variants = new Map();
     lastFile = file;
+    const variantKey = `${state.photoFit}|${state.photoShape}`;
     const seq = ++uploadSeq;
     const label = $('#uploadLabel').parentElement;
+
+    if (variants.has(variantKey)) {
+      state.photo = variants.get(variantKey);
+      state.photoData = '';
+      setUploadStatus(HOSTED_MSG, 'ok');
+      syncFields();
+      render();
+      return;
+    }
+
     label.classList.add('is-busy');
     setUploadStatus('Preparing image…');
 
     try {
-      const { blob, dataUrl } = await prepareImage(file, state.photoFit);
+      const { blob, dataUrl } = await prepareImage(file, state.photoFit, state.photoShape);
       if (seq !== uploadSeq) return;
       // Show it immediately while the upload runs.
       state.photoData = dataUrl;
@@ -475,13 +593,14 @@
       try {
         const url = await hostImage(blob);
         if (seq !== uploadSeq) return;
+        variants.set(variantKey, url);
         state.photo = url;
         state.photoData = '';
-        setUploadStatus('Image hosted — it will show in Gmail, Outlook and Apple Mail.', 'ok');
+        setUploadStatus(HOSTED_MSG, 'ok');
       } catch (err) {
         if (seq !== uploadSeq) return;
         console.warn('Image hosting unavailable:', err.message);
-        setUploadStatus(EMBED_MSG, 'warn');
+        setUploadStatus(err.status === 429 ? `${err.message} Until then the image is embedded, which Gmail won’t show.` : EMBED_MSG, 'warn');
       }
       syncFields();
       render();
@@ -495,6 +614,7 @@
   function clearPhoto(msg = DEFAULT_UPLOAD_MSG) {
     uploadSeq++;
     lastFile = null;
+    variants = new Map();
     state.photo = '';
     state.photoData = '';
     $('#uploadLabel').parentElement.classList.remove('is-busy');
@@ -617,14 +737,20 @@
 
   function bindFields() {
     document.querySelectorAll('[data-key]').forEach(el => {
+      // Hints appear after the first blur, then update live while typing.
+      el.addEventListener('blur', () => {
+        if (touched.has(el.dataset.key)) return;
+        touched.add(el.dataset.key);
+        updateHints();
+      });
       el.addEventListener('input', () => {
         const key = el.dataset.key;
         state[key] = el.value;
         // A pasted link replaces any uploaded image.
         if (key === 'photo') { uploadSeq++; lastFile = null; state.photoData = ''; setUploadStatus(DEFAULT_UPLOAD_MSG); }
         render();
-        // Re-crop the uploaded file when the fit mode changes.
-        if (key === 'photoFit' && lastFile) handleFile(lastFile);
+        // Fit and shape are baked into uploaded images, so re-process the file.
+        if ((key === 'photoFit' || key === 'photoShape') && lastFile) handleFile(lastFile);
       });
     });
   }
@@ -708,6 +834,9 @@ ${signatureHtml(true)}
   buildTemplatePicker();
   buildIconStyles();
   buildSwatches();
+  addHintSlots();
+  // Flag problems in saved values straight away.
+  Object.keys(state).forEach(k => { if (String(state[k] || '').trim()) touched.add(k); });
   syncFields();
   bindFields();
   render();
@@ -724,6 +853,7 @@ ${signatureHtml(true)}
 
   $('#reset').addEventListener('click', () => {
     clearPhoto();
+    touched.clear();
     state = { ...EMPTY };
     syncFields();
     render();

@@ -10,7 +10,11 @@ Gmail and most webmail clients strip images embedded in a signature (`data:` URI
 2. POSTs it to `/api/upload`, which stores it in Vercel Blob under a random UUID and returns the URL.
 3. If hosting isn't available (e.g. opened as a local file), it falls back to embedding the image — this works in Apple Mail and Outlook desktop, not Gmail.
 
-The endpoint accepts only PNG/JPEG up to 512 KB, verifies the file's magic bytes, and rejects requests from other origins.
+The endpoint accepts only PNG/JPEG up to 512 KB, verifies the file's magic bytes, and rejects requests from other origins. Circle and rounded photo shapes are cut into the image itself (transparent PNG), because Outlook for Windows ignores `border-radius`.
+
+Uploads are rate limited (`api/_ratelimit.js`): 20/hour and 60/day per visitor, 2,000/day overall. Visitor IPs are only kept as a salted hash for the length of the window. By default the counters live in each function instance's memory; for limits shared across instances, add **Upstash for Redis** from the Vercel Marketplace (free tier) — its env vars are picked up automatically. Optionally set `RATE_LIMIT_SALT` to a random string.
+
+Fonts (Inter, Fraunces — SIL OFL) are self-hosted in `fonts/`, so the page makes no third-party requests.
 
 ## Contact icons
 

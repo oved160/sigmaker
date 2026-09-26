@@ -1,4 +1,12 @@
 import { put } from '@vercel/blob';
+import { rateLimit } from './_ratelimit.js';
+
+// Generous for real use (re-cropping or changing shape re-uploads), tight for bots.
+const LIMITS = [
+  { id: 'up-ip-h', perIp: true, limit: 20, windowSec: 60 * 60 },
+  { id: 'up-ip-d', perIp: true, limit: 60, windowSec: 24 * 60 * 60 },
+  { id: 'up-all-d', perIp: false, limit: 2000, windowSec: 24 * 60 * 60 },
+];
 
 // Signature images are resized in the browser to ~240px before upload,
 // so anything bigger than this isn't coming from SigMaker.
@@ -41,6 +49,13 @@ export async function POST(request) {
   const buf = Buffer.from(await request.arrayBuffer());
   if (!buf.length || buf.length > MAX_BYTES) return json({ error: 'Image is too large.' }, 413);
   if (sniff(buf) !== type) return json({ error: 'File is not a valid image.' }, 415);
+
+  const limited = await rateLimit(request, LIMITS);
+  if (!limited.ok) {
+    const res = json({ error: 'Too many uploads — please try again later.' }, 429);
+    res.headers.set('retry-after', String(limited.retryAfter));
+    return res;
+  }
 
   try {
     const blob = await put(`signatures/${crypto.randomUUID()}.${TYPES[type]}`, buf, {

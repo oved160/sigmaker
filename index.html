@@ -5,9 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>SigMaker — Free HTML Email Signature Generator</title>
   <meta name="description" content="Create clean, responsive HTML email signatures for free. No account, no tracking — everything stays in your browser." />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="preload" href="fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body data-mview="edit">
@@ -81,15 +79,15 @@
         <div class="grid">
           <label class="field">
             <span>LinkedIn</span>
-            <input type="url" data-key="linkedin" placeholder="linkedin.com/in/astrid" />
+            <input type="url" data-key="linkedin" placeholder="Profile link or username" />
           </label>
           <label class="field">
             <span>GitHub</span>
-            <input type="url" data-key="github" placeholder="github.com/astrid" />
+            <input type="url" data-key="github" placeholder="Profile link or username" />
           </label>
           <label class="field">
             <span>X / Twitter</span>
-            <input type="url" data-key="twitter" placeholder="x.com/astrid" />
+            <input type="url" data-key="twitter" placeholder="Profile link or @handle" />
           </label>
           <label class="field">
             <span>Portfolio / Other</span>
