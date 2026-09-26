@@ -2,6 +2,9 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "cleanUrls": true,
   "regions": ["fra1"],
+  "rewrites": [
+    { "source": "/i/:set/:color/:name.png", "destination": "/api/icon?s=:set&c=:color&n=:name" }
+  ],
   "headers": [
     {
       "source": "/(.*)",

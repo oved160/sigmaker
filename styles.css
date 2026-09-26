@@ -230,6 +230,59 @@ input[type="range"] {
 .swatch-custom input { position: absolute; inset: -8px; width: 46px; height: 46px; opacity: 0; cursor: pointer; }
 .swatch-custom.is-active { box-shadow: 0 0 0 2px var(--text); }
 
+/* Icon style picker */
+.icons-field { margin-top: 18px; }
+.icon-styles {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+.icon-style {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 4px 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  transition: border-color .15s;
+}
+.icon-style:hover { border-color: var(--border-strong); }
+.icon-style[aria-checked="true"] { border-color: var(--text); box-shadow: inset 0 0 0 1px var(--text); }
+.icon-sample {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 18px;
+  font: 600 12px/1 Helvetica, Arial, sans-serif;
+}
+.icon-sample img { display: block; }
+.icon-sample i { font-style: normal; color: var(--muted); }
+.icon-name { font-size: 12.5px; font-weight: 500; }
+
+/* Template chips (mobile preview only) */
+.tpl-chips { display: none; }
+.tpl-chip {
+  flex: none;
+  padding: 7px 14px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  font: inherit;
+  font-size: 13px;
+  color: var(--text);
+  cursor: pointer;
+}
+.tpl-chip[aria-checked="true"] { background: var(--text); border-color: var(--text); color: var(--bg); }
+
+/* Mobile tab bar */
+.mobile-tabs { display: none; }
+
 /* Privacy row */
 .privacy-row {
   display: flex;
@@ -387,10 +440,60 @@ input[type="range"] {
 
 /* ---------- Responsive ---------- */
 @media (max-width: 960px) {
-  .layout { grid-template-columns: 1fr; gap: 32px; padding: 24px 16px; }
+  .layout { grid-template-columns: minmax(0, 1fr); gap: 32px; padding: 24px 16px; }
+  .preview-head .seg { display: none; }
   .site-header { padding: 20px 16px 0; }
   .site-footer { padding: 16px 16px 40px; }
   .sticky { position: static; }
+
+  /* Edit / Preview become two tabs with a fixed bottom bar */
+  body { padding-bottom: calc(72px + env(safe-area-inset-bottom)); }
+  body[data-mview="edit"] .preview-col,
+  body[data-mview="preview"] .controls,
+  body[data-mview="preview"] .site-footer { display: none; }
+  .intro h1 { font-size: 26px; }
+  .intro p { margin-bottom: 20px; }
+
+  .mobile-tabs {
+    display: flex;
+    gap: 8px;
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    z-index: 10;
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+    background: rgba(253, 251, 247, .94);
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+    border-top: 1px solid var(--border);
+  }
+  .mtab {
+    flex: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 46px;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius);
+    background: var(--surface);
+    font: inherit;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text);
+    cursor: pointer;
+  }
+  .mtab svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .mtab.is-active { background: var(--text); border-color: var(--text); color: var(--bg); }
+
+  .tpl-chips {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    margin: 0 -16px 14px;
+    padding: 2px 16px;
+    scrollbar-width: none;
+  }
+  .tpl-chips::-webkit-scrollbar { display: none; }
 }
 @media (max-width: 520px) {
   .grid, .row { grid-template-columns: 1fr; }
@@ -398,6 +501,9 @@ input[type="range"] {
   .mail-meta { padding: 10px 16px; }
   .brand-tag { display: none; }
   .btn { flex: 1 1 100%; }
+  .icon-styles { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  /* 16px inputs stop iOS Safari from zooming in on focus */
+  input[type="text"], input[type="email"], input[type="tel"], input[type="url"], select, textarea { font-size: 16px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

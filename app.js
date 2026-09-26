@@ -30,13 +30,29 @@
     ctaUrl: '',
     disclaimer: '',
     accent: '#4A6B5D',
+    iconStyle: 'line',
     template: 'classic',
   };
+
+  // 'text' = letter/word labels, 'none' = no labels, others = icon sets from icons.js
+  const ICON_STYLES = [
+    { id: 'none', name: 'None' },
+    { id: 'text', name: 'Text' },
+    { id: 'line', name: 'Line' },
+    { id: 'solid', name: 'Solid' },
+    { id: 'badge', name: 'Badge' },
+  ];
+  const { svg: iconSvg, SETS: ICON_SETS } = window.SIG_ICONS;
+
+  // Exported signatures reference PNG icons on this deployment (email clients
+  // can't show SVG). Local/dev pages have no public host, so they embed SVG.
+  const ICON_HOST = /^https?:$/.test(location.protocol) &&
+    !/^(localhost|127\.|\[::1\]|0\.0\.0\.0)/.test(location.hostname) ? location.origin : '';
 
   const EMPTY = Object.fromEntries(Object.keys(SAMPLE).map(k => [k, '']));
   Object.assign(EMPTY, {
     photoShape: 'circle', photoFit: 'cover', photoSize: '72', font: SAMPLE.font, fontSize: '13',
-    accent: '#2C2C2C', template: 'classic',
+    accent: '#2C2C2C', iconStyle: 'line', template: 'classic',
   });
 
   const FONTS = [...document.querySelectorAll('select[data-key="font"] option')].map(o => o.value);
@@ -63,24 +79,33 @@
   const isImageData = d => /^data:image\/(png|jpeg);base64,[A-Za-z0-9+/=]+$/.test(String(d || ''));
 
   // ---------- Data shaping ----------
-  function model(s) {
+  function iconSrc(set, name, color, forExport) {
+    if (forExport && ICON_HOST) return `${ICON_HOST}/i/${set}/${color.slice(1).toLowerCase()}/${name}.png`;
+    return 'data:image/svg+xml,' + encodeURIComponent(iconSvg(set, name, color));
+  }
+
+  function model(s, forExport = false) {
     const accent = isHex(s.accent) ? s.accent : '#2C2C2C';
     const fs = Number(s.fontSize) || 13;
     const photoSize = Math.min(120, Math.max(48, Number(s.photoSize) || 72));
     const radius = s.photoShape === 'circle' ? '50%' : s.photoShape === 'rounded' ? '12px' : '0';
+    const iconStyle = ICON_STYLES.some(x => x.id === s.iconStyle) ? s.iconStyle : 'line';
+    const iconSet = ICON_SETS.includes(iconStyle) ? iconStyle : '';
 
     const contacts = [];
-    if (s.phone.trim()) contacts.push({ label: 'P', text: s.phone.trim(), href: telHref(s.phone) });
-    if (s.email.trim()) contacts.push({ label: 'E', text: s.email.trim(), href: mailHref(s.email) });
+    if (s.phone.trim()) contacts.push({ label: 'P', word: 'Phone', icon: 'phone', text: s.phone.trim(), href: telHref(s.phone) });
+    if (s.email.trim()) contacts.push({ label: 'E', word: 'Email', icon: 'email', text: s.email.trim(), href: mailHref(s.email) });
     const site = toUrl(s.website);
-    if (site) contacts.push({ label: 'W', text: prettyUrl(site), href: site });
-    if (s.address.trim()) contacts.push({ label: 'A', text: s.address.trim(), href: '' });
+    if (site) contacts.push({ label: 'W', word: 'Web', icon: 'website', text: prettyUrl(site), href: site });
+    if (s.address.trim()) contacts.push({ label: 'A', word: 'Based in', icon: 'location', text: s.address.trim(), href: '' });
 
     const socials = [
-      ['LinkedIn', s.linkedin], ['GitHub', s.github], ['X', s.twitter], ['Portfolio', s.portfolio],
-    ].map(([label, v]) => ({ label, href: toUrl(v) })).filter(x => x.href);
+      ['LinkedIn', 'linkedin', s.linkedin], ['GitHub', 'github', s.github], ['X', 'x', s.twitter], ['Portfolio', 'link', s.portfolio],
+    ].map(([label, icon, v]) => ({ label, icon, href: toUrl(v) })).filter(x => x.href);
 
     return {
+      iconStyle, iconSet,
+      icon: name => iconSrc(iconSet, name, accent, forExport),
       name: s.name.trim(),
       title: s.title.trim(),
       company: s.company.trim(),
@@ -120,22 +145,57 @@
     return `<div style="font-size:${m.fs}px;line-height:1.5;margin:2px 0 0;">${[t, c].filter(Boolean).join(`<span style="color:${MUTED};">${joiner}</span>`)}</div>`;
   }
 
-  function contactRows(m, { labels = true } = {}) {
+  const TABLE = 'cellpadding="0" cellspacing="0" border="0" role="presentation" style="border-collapse:collapse;"';
+
+  // Contact icons scale with the text; badges carry their own padding so run a bit larger.
+  const iconSize = m => m.fs + (m.iconSet === 'badge' ? 5 : 2);
+
+  function iconImg(m, name, size = iconSize(m), alt = '') {
+    return `<img src="${esc(m.icon(name))}" width="${size}" height="${size}" alt="${esc(alt)}" style="display:inline-block;width:${size}px;height:${size}px;border:0;vertical-align:middle;" />`;
+  }
+
+  const contactValue = (m, c) =>
+    c.href ? link(m, c.href, c.text) : `<span style="color:${TEXT};">${esc(c.text)}</span>`;
+
+  // One contact per line: [icon | letter] value
+  function contactRows(m) {
+    if (!m.contacts.length) return '';
+    if (m.iconSet) {
+      return `<table ${TABLE}>${m.contacts.map(c => `<tr>
+        <td valign="middle" style="padding:2px 8px 2px 0;line-height:0;">${iconImg(m, c.icon)}</td>
+        <td valign="middle" style="padding:2px 0;font-size:${m.fs}px;line-height:1.5;">${contactValue(m, c)}</td>
+      </tr>`).join('')}</table>`;
+    }
     return m.contacts.map(c => {
-      const val = c.href ? link(m, c.href, c.text) : `<span style="color:${TEXT};">${esc(c.text)}</span>`;
-      const lab = labels ? `<span style="color:${m.accent};font-weight:bold;">${c.label}</span>&nbsp;&nbsp;` : '';
-      return `<div style="font-size:${m.fs}px;line-height:1.6;">${lab}${val}</div>`;
+      const lab = m.iconStyle === 'text' ? `<span style="color:${m.accent};font-weight:bold;">${c.label}</span>&nbsp;&nbsp;` : '';
+      return `<div style="font-size:${m.fs}px;line-height:1.6;">${lab}${contactValue(m, c)}</div>`;
     }).join('');
   }
 
-  function contactInline(m, sep = ' &nbsp;·&nbsp; ') {
+  // All contacts on one wrapping line
+  function contactInline(m, sep = ' &nbsp;·&nbsp; ', color = TEXT) {
     if (!m.contacts.length) return '';
-    const items = m.contacts.map(c => c.href ? link(m, c.href, c.text) : `<span style="color:${TEXT};">${esc(c.text)}</span>`);
-    return `<div style="font-size:${m.fs}px;line-height:1.6;color:${MUTED};">${items.join(`<span style="color:${MUTED};">${sep}</span>`)}</div>`;
+    const items = m.contacts.map(c => {
+      const val = c.href ? link(m, c.href, c.text, color) : `<span style="color:${color};">${esc(c.text)}</span>`;
+      if (m.iconSet) return `<span style="white-space:nowrap;">${iconImg(m, c.icon)}&nbsp;${val}</span>`;
+      if (m.iconStyle === 'text') return `<span style="white-space:nowrap;"><span style="color:${m.accent};font-weight:bold;">${c.label}</span>&nbsp;${val}</span>`;
+      return val;
+    });
+    const gap = m.iconSet ? ' &nbsp;&nbsp; ' : sep;
+    return `<div style="font-size:${m.fs}px;line-height:1.8;color:${MUTED};">${items.join(`<span style="color:${MUTED};">${gap}</span>`)}</div>`;
+  }
+
+  function socialIcons(m) {
+    const size = m.iconSet === 'badge' ? 24 : 20;
+    const cells = m.socials.map(s =>
+      `<td style="padding:0 8px 0 0;line-height:0;"><a href="${esc(s.href)}" style="text-decoration:none;">${iconImg(m, s.icon, size, s.label)}</a></td>`
+    ).join('');
+    return `<table ${TABLE.replace('style="', 'style="margin-top:10px;')}><tr>${cells}</tr></table>`;
   }
 
   function socialLine(m, { pill = false } = {}) {
     if (!m.socials.length) return '';
+    if (m.iconSet) return socialIcons(m);
     if (pill) {
       const cells = m.socials.map(s =>
         `<td style="padding:0 6px 0 0;"><a href="${esc(s.href)}" style="display:inline-block;padding:3px 10px;border:1px solid ${m.accent};border-radius:12px;color:${m.accent};font-size:${m.fs - 1}px;text-decoration:none;">${esc(s.label)}</a></td>`
@@ -215,12 +275,18 @@
       thumb: [['i', 10, 14, 44, 6], ['i', 10, 25, 64, 3], ['a', 10, 34, 80, 3]],
       build(m) {
         const role = [m.title, m.company].filter(Boolean).map(esc).join(', ');
-        const socials = m.socials.map(s => link(m, s.href, s.label, m.accent));
+        const contacts = m.contacts.map(c => {
+          const val = c.href ? link(m, c.href, c.text, TEXT) : esc(c.text);
+          return m.iconSet ? `<span style="white-space:nowrap;">${iconImg(m, c.icon, m.fs)}&nbsp;${val}</span>` : val;
+        });
+        const socials = m.iconSet
+          ? (m.socials.length ? [m.socials.map(s => `<a href="${esc(s.href)}" style="text-decoration:none;">${iconImg(m, s.icon, m.fs + 3, s.label)}</a>`).join('&nbsp;&nbsp;')] : [])
+          : m.socials.map(s => link(m, s.href, s.label, m.accent));
         return signoff(m) + wrap(m, `<tr><td>
           ${m.name ? `<div style="font-size:${m.fs + 1}px;line-height:1.5;font-weight:bold;color:${TEXT};">${esc(m.name)}${m.pronouns ? ` <span style="font-weight:normal;color:${MUTED};">(${esc(m.pronouns)})</span>` : ''}</div>` : ''}
           ${role ? `<div style="font-size:${m.fs}px;line-height:1.5;color:${MUTED};">${role}</div>` : ''}
-          <div style="font-size:${m.fs}px;line-height:1.6;color:${MUTED};margin-top:4px;">
-            ${[...m.contacts.map(c => c.href ? link(m, c.href, c.text, TEXT) : esc(c.text)), ...socials].join(`<span style="color:#BDB6AB;"> &nbsp;|&nbsp; </span>`)}
+          <div style="font-size:${m.fs}px;line-height:1.8;color:${MUTED};margin-top:4px;">
+            ${[...contacts, ...socials].join(`<span style="color:#BDB6AB;"> &nbsp;|&nbsp; </span>`)}
           </div>
           ${m.cta ? `<div style="font-size:${m.fs}px;line-height:1.6;margin-top:6px;">${link(m, m.cta.href, m.cta.text + ' →', m.accent)}</div>` : ''}
         </td></tr>`) + extras(m);
@@ -240,8 +306,12 @@
           <tr><td style="padding:12px 0 0;">
             <table cellpadding="0" cellspacing="0" border="0" role="presentation" style="border-collapse:collapse;">
               ${m.contacts.map(c => `<tr>
-                <td style="padding:0 12px 2px 0;font-size:${m.fs - 1}px;line-height:1.6;color:${m.accent};font-weight:bold;letter-spacing:1px;text-transform:uppercase;" valign="top">${{ P: 'Phone', E: 'Email', W: 'Web', A: 'Based in' }[c.label]}</td>
-                <td style="padding:0 0 2px;font-size:${m.fs}px;line-height:1.6;" valign="top">${c.href ? link(m, c.href, c.text) : esc(c.text)}</td>
+                ${m.iconSet
+                  ? `<td style="padding:2px 10px 2px 0;line-height:0;" valign="middle">${iconImg(m, c.icon)}</td>`
+                  : m.iconStyle === 'text'
+                    ? `<td style="padding:0 12px 2px 0;font-size:${m.fs - 1}px;line-height:1.6;color:${m.accent};font-weight:bold;letter-spacing:1px;text-transform:uppercase;" valign="top">${c.word}</td>`
+                    : ''}
+                <td style="padding:2px 0;font-size:${m.fs}px;line-height:1.6;" valign="middle">${contactValue(m, c)}</td>
               </tr>`).join('')}
             </table>
             ${socialLine(m)}
@@ -301,8 +371,9 @@
   const preview = $('#preview');
   const status = $('#status');
 
-  function signatureHtml() {
-    const m = model(state);
+  // forExport: icons point at hosted PNGs instead of inline SVG previews.
+  function signatureHtml(forExport = false) {
+    const m = model(state, forExport);
     const tpl = TEMPLATES[state.template] || TEMPLATES.classic;
     return tpl.build(m).replace(/\n\s+/g, '\n').trim();
   }
@@ -454,19 +525,56 @@
           `<i class="${c}" style="left:${(x / 1.12).toFixed(1)}%;top:${y}px;width:${r === '50%' ? `${w}px` : `${(w / 1.12).toFixed(1)}%`};height:${h}px;${r ? `border-radius:${r};` : ''}"></i>`).join('')}</span>
         <span class="tpl-name">${t.name}</span>
       </button>`).join('');
-    host.addEventListener('click', e => {
-      const btn = e.target.closest('.tpl');
+    // Compact chips above the preview, so templates can be switched on mobile
+    // without leaving the preview tab.
+    $('#tplChips').innerHTML = Object.entries(TEMPLATES).map(([id, t]) =>
+      `<button type="button" class="tpl-chip" role="radio" data-tpl="${id}" aria-checked="false">${t.name}</button>`).join('');
+
+    const pick = e => {
+      const btn = e.target.closest('[data-tpl]');
       if (!btn) return;
       state.template = btn.dataset.tpl;
       syncTemplate();
       render();
-    });
+    };
+    host.addEventListener('click', pick);
+    $('#tplChips').addEventListener('click', pick);
   }
 
   function syncTemplate() {
-    document.querySelectorAll('.tpl').forEach(b =>
+    document.querySelectorAll('[data-tpl]').forEach(b =>
       b.setAttribute('aria-checked', String(b.dataset.tpl === state.template)));
     $('#templates').style.setProperty('--thumb-accent', state.accent);
+  }
+
+  function buildIconStyles() {
+    const host = $('#iconStyles');
+    host.innerHTML = ICON_STYLES.map(s =>
+      `<button type="button" class="icon-style" role="radio" data-icons="${s.id}" aria-checked="false">
+        <span class="icon-sample" aria-hidden="true"></span>
+        <span class="icon-name">${s.name}</span>
+      </button>`).join('');
+    host.addEventListener('click', e => {
+      const btn = e.target.closest('.icon-style');
+      if (!btn) return;
+      state.iconStyle = btn.dataset.icons;
+      syncIconStyles();
+      render();
+    });
+  }
+
+  function syncIconStyles() {
+    const accent = isHex(state.accent) ? state.accent : '#2C2C2C';
+    document.querySelectorAll('.icon-style').forEach(btn => {
+      const id = btn.dataset.icons;
+      btn.setAttribute('aria-checked', String(id === state.iconStyle));
+      btn.querySelector('.icon-sample').innerHTML = ICON_SETS.includes(id)
+        ? ['phone', 'email', 'website'].map(n =>
+          `<img src="${iconSrc(id, n, accent, false)}" width="16" height="16" alt="" />`).join('')
+        : id === 'text'
+          ? `<b style="color:${accent}">P</b><b style="color:${accent}">E</b><b style="color:${accent}">W</b>`
+          : '<i>—</i>';
+    });
   }
 
   function buildSwatches() {
@@ -498,6 +606,7 @@
     custom.style.background = preset ? '' : state.accent;
     custom.querySelector('input').value = isHex(state.accent) ? state.accent.toLowerCase() : '#2c2c2c';
     $('#templates').style.setProperty('--thumb-accent', state.accent);
+    syncIconStyles();
   }
 
   function syncFields() {
@@ -529,23 +638,27 @@
 
   async function copyRich() {
     if (!hasContent()) return flash('Add some details first.');
-    const html = signatureHtml();
+    const html = signatureHtml(true);
+    const tmp = document.createElement('div');
+    tmp.innerHTML = html;
     try {
       if (window.ClipboardItem && navigator.clipboard?.write) {
-        const tmp = document.createElement('div');
-        tmp.innerHTML = html;
         await navigator.clipboard.write([new ClipboardItem({
           'text/html': new Blob([html], { type: 'text/html' }),
           'text/plain': new Blob([tmp.innerText], { type: 'text/plain' }),
         })]);
       } else {
+        // Older browsers: select an off-screen copy of the export markup.
+        tmp.style.cssText = 'position:fixed;left:-9999px;top:0;';
+        document.body.appendChild(tmp);
         const range = document.createRange();
-        range.selectNodeContents(preview);
+        range.selectNodeContents(tmp);
         const sel = getSelection();
         sel.removeAllRanges();
         sel.addRange(range);
         document.execCommand('copy');
         sel.removeAllRanges();
+        tmp.remove();
       }
       flash('Signature copied — paste it into your email client’s signature settings.');
     } catch {
@@ -556,7 +669,7 @@
   async function copyHtml() {
     if (!hasContent()) return flash('Add some details first.');
     try {
-      await navigator.clipboard.writeText(signatureHtml());
+      await navigator.clipboard.writeText(signatureHtml(true));
       flash('HTML source copied.');
     } catch {
       flash('Couldn’t access the clipboard in this browser.');
@@ -574,7 +687,7 @@
 </head>
 <body style="margin:0;padding:24px;background:#FFFFFF;">
 <!-- Signature start -->
-${signatureHtml()}
+${signatureHtml(true)}
 <!-- Signature end -->
 </body>
 </html>`;
@@ -593,6 +706,7 @@ ${signatureHtml()}
   // ---------- Init ----------
   load();
   buildTemplatePicker();
+  buildIconStyles();
   buildSwatches();
   syncFields();
   bindFields();
@@ -619,6 +733,16 @@ ${signatureHtml()}
   document.querySelectorAll('.seg-btn').forEach(btn => btn.addEventListener('click', () => {
     document.querySelectorAll('.seg-btn').forEach(b => b.classList.toggle('is-active', b === btn));
     $('#mail').classList.toggle('is-mobile', btn.dataset.view === 'mobile');
+  }));
+
+  // Mobile: switch between the form and the preview.
+  document.querySelectorAll('.mtab').forEach(btn => btn.addEventListener('click', () => {
+    document.body.dataset.mview = btn.dataset.mview;
+    document.querySelectorAll('.mtab').forEach(b => {
+      b.classList.toggle('is-active', b === btn);
+      b.setAttribute('aria-pressed', String(b === btn));
+    });
+    window.scrollTo({ top: 0 });
   }));
 
   $('#copyRich').addEventListener('click', copyRich);
