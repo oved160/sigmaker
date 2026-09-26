@@ -33,7 +33,7 @@
       <fieldset class="group">
         <legend>About you</legend>
         <div class="grid">
-          <label class="field">
+          <label class="field span-2">
             <span>Full name</span>
             <input type="text" data-key="name" autocomplete="name" placeholder="Astrid Lindqvist" />
           </label>
@@ -44,10 +44,6 @@
           <label class="field">
             <span>Company</span>
             <input type="text" data-key="company" autocomplete="organization" placeholder="Nordvik Studio" />
-          </label>
-          <label class="field">
-            <span>Pronouns <em>optional</em></span>
-            <input type="text" data-key="pronouns" placeholder="she/her" />
           </label>
         </div>
       </fieldset>
@@ -144,6 +140,15 @@
         <div class="field">
           <span>Accent colour</span>
           <div class="swatches" id="swatches"></div>
+        </div>
+        <div class="field dir-field">
+          <span>Text direction</span>
+          <div class="seg seg-wide" id="dirPicker" role="radiogroup" aria-label="Text direction">
+            <button type="button" class="seg-btn" role="radio" data-dir="auto">Auto</button>
+            <button type="button" class="seg-btn" role="radio" data-dir="ltr">Left to right</button>
+            <button type="button" class="seg-btn" role="radio" data-dir="rtl">Right to left</button>
+          </div>
+          <small class="dir-note" id="dirNote"></small>
         </div>
         <div class="field icons-field">
           <span>Contact icons</span>

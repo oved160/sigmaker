@@ -9,7 +9,6 @@
     name: 'Astrid Lindqvist',
     title: 'Product Designer',
     company: 'Nordvik Studio',
-    pronouns: '',
     email: 'astrid@nordvik.studio',
     phone: '+46 70 123 45 67',
     website: 'nordvik.studio',
@@ -31,6 +30,7 @@
     disclaimer: '',
     accent: '#4A6B5D',
     iconStyle: 'line',
+    dir: 'auto',
     template: 'classic',
   };
 
@@ -52,7 +52,7 @@
   const EMPTY = Object.fromEntries(Object.keys(SAMPLE).map(k => [k, '']));
   Object.assign(EMPTY, {
     photoShape: 'circle', photoFit: 'cover', photoSize: '72', font: SAMPLE.font, fontSize: '13',
-    accent: '#2C2C2C', iconStyle: 'line', template: 'classic',
+    accent: '#2C2C2C', iconStyle: 'line', dir: 'auto', template: 'classic',
   });
 
   const FONTS = [...document.querySelectorAll('select[data-key="font"] option')].map(o => o.value);
@@ -94,6 +94,39 @@
   const ROUNDED_RATIO = 1 / 6;
   const isImageData = d => /^data:image\/(png|jpeg);base64,[A-Za-z0-9+/=]+$/.test(String(d || ''));
 
+  // ---------- Text direction ----------
+  // Hebrew, Arabic, Syriac, Thaana, N'Ko… plus presentation forms.
+  const RTL_CHAR = /[֐-ࣿיִ-﷿ﹰ-﻿]/;
+  const LTR_CHAR = /[A-Za-zÀ-ɏͰ-ԯ]/;
+
+  function firstStrongDir(text) {
+    for (const ch of text) {
+      if (RTL_CHAR.test(ch)) return 'rtl';
+      if (LTR_CHAR.test(ch)) return 'ltr';
+    }
+    return '';
+  }
+
+  // 'auto' follows the first letter of the name (or title/company).
+  function resolveDir(s) {
+    if (s.dir === 'rtl' || s.dir === 'ltr') return s.dir;
+    return firstStrongDir([s.name, s.title, s.company].join(' ')) || 'ltr';
+  }
+
+  // Contact labels for the Stacked template, matched to the script in use.
+  const LABEL_WORDS = {
+    en: { phone: 'Phone', email: 'Email', website: 'Web', location: 'Based in' },
+    he: { phone: 'טלפון', email: 'אימייל', website: 'אתר', location: 'מיקום' },
+    ar: { phone: 'هاتف', email: 'بريد', website: 'موقع', location: 'العنوان' },
+  };
+  function labelLang(s, dir) {
+    if (dir !== 'rtl') return 'en';
+    const text = [s.name, s.title, s.company, s.address].join(' ');
+    if (/[֐-׿]/.test(text)) return 'he';
+    if (/[؀-ۿ]/.test(text)) return 'ar';
+    return 'en';
+  }
+
   // ---------- Data shaping ----------
   function iconSrc(set, name, color, forExport) {
     if (forExport && ICON_HOST) return `${ICON_HOST}/i/${set}/${color.slice(1).toLowerCase()}/${name}.png`;
@@ -108,13 +141,18 @@
       : s.photoShape === 'rounded' ? `${Math.round(photoSize * ROUNDED_RATIO)}px` : '0';
     const iconStyle = ICON_STYLES.some(x => x.id === s.iconStyle) ? s.iconStyle : 'line';
     const iconSet = ICON_SETS.includes(iconStyle) ? iconStyle : '';
+    const dir = resolveDir(s);
+    const words = LABEL_WORDS[labelLang(s, dir)];
 
+    // Phone numbers, emails and URLs are always laid out left-to-right, even
+    // inside right-to-left text, so they never get scrambled.
     const contacts = [];
-    if (s.phone.trim()) contacts.push({ label: 'P', word: 'Phone', icon: 'phone', text: s.phone.trim(), href: PHONE_RE.test(s.phone.trim()) ? telHref(s.phone) : '' });
-    if (EMAIL_RE.test(s.email.trim())) contacts.push({ label: 'E', word: 'Email', icon: 'email', text: s.email.trim(), href: mailHref(s.email) });
+    if (s.phone.trim()) contacts.push({ label: 'P', icon: 'phone', dir: 'ltr', text: s.phone.trim(), href: PHONE_RE.test(s.phone.trim()) ? telHref(s.phone) : '' });
+    if (EMAIL_RE.test(s.email.trim())) contacts.push({ label: 'E', icon: 'email', dir: 'ltr', text: s.email.trim(), href: mailHref(s.email) });
     const site = toUrl(s.website);
-    if (site) contacts.push({ label: 'W', word: 'Web', icon: 'website', text: prettyUrl(site), href: site });
-    if (s.address.trim()) contacts.push({ label: 'A', word: 'Based in', icon: 'location', text: s.address.trim(), href: '' });
+    if (site) contacts.push({ label: 'W', icon: 'website', dir: 'ltr', text: prettyUrl(site), href: site });
+    if (s.address.trim()) contacts.push({ label: 'A', icon: 'location', dir: 'auto', text: s.address.trim(), href: '' });
+    contacts.forEach(c => { c.word = words[c.icon]; });
 
     const socials = [
       ['LinkedIn', 'linkedin', 'linkedin'], ['GitHub', 'github', 'github'], ['X', 'x', 'twitter'], ['Portfolio', 'link', 'portfolio'],
@@ -123,10 +161,10 @@
     return {
       iconStyle, iconSet,
       icon: name => iconSrc(iconSet, name, accent, forExport),
+      dir, rtl: dir === 'rtl', align: dir === 'rtl' ? 'right' : 'left',
       name: s.name.trim(),
       title: s.title.trim(),
       company: s.company.trim(),
-      pronouns: s.pronouns.trim(),
       // A hosted link wins; an embedded image is the fallback when hosting isn't available.
       photo: toUrl(s.photo) || (isImageData(s.photoData) ? s.photoData : ''),
       photoFit: s.photoFit === 'contain' ? 'contain' : 'cover',
@@ -145,24 +183,37 @@
   const TEXT = '#2C2C2C';
   const MUTED = '#6F6A63';
 
-  const link = (m, href, text, color = TEXT) =>
-    `<a href="${esc(href)}" style="color:${color};text-decoration:none;">${esc(text)}</a>`;
+  // Bidi: every piece of user text is isolated in its own span, so Hebrew or
+  // Arabic mixed with English (and punctuation between them) renders in the
+  // right order whatever the layout direction. `dir` on inline elements
+  // isolates the run; 'ltr' pins phone numbers, emails and URLs.
+  const txt = (s, dir = 'auto') => `<span dir="${dir}">${esc(s)}</span>`;
+
+  const link = (m, href, text, color = TEXT, dir = 'auto') =>
+    `<a href="${esc(href)}" dir="${dir}" style="color:${color};text-decoration:none;">${esc(text)}</a>`;
+
+  // Logical padding: (top, end, bottom, start) → physical CSS for the layout direction.
+  const pad = (m, t, e, b, s) => `padding:${t}px ${m.rtl ? s : e}px ${b}px ${m.rtl ? e : s}px;`;
+  const startSide = m => (m.rtl ? 'right' : 'left');
+  const arrow = m => (m.rtl ? '&larr;' : '&rarr;');
 
   function nameLine(m, size) {
     if (!m.name) return '';
-    const pro = m.pronouns
-      ? ` <span style="font-weight:normal;font-size:${m.fs - 1}px;color:${MUTED};">(${esc(m.pronouns)})</span>` : '';
-    return `<div style="font-size:${size}px;line-height:1.25;font-weight:bold;color:${TEXT};margin:0;">${esc(m.name)}${pro}</div>`;
+    return `<div style="font-size:${size}px;line-height:1.25;font-weight:bold;color:${TEXT};margin:0;">${txt(m.name)}</div>`;
   }
 
-  function roleLine(m, { accentTitle = true, joiner = ', ' } = {}) {
+  // "Title, Company" — each part isolated so a Hebrew title and English company keep their order.
+  function roleLine(m, { joiner = ', ' } = {}) {
     if (!m.title && !m.company) return '';
-    const t = m.title ? `<span style="color:${accentTitle ? m.accent : TEXT};">${esc(m.title)}</span>` : '';
-    const c = m.company ? `<span style="color:${MUTED};">${esc(m.company)}</span>` : '';
+    const t = m.title ? `<span style="color:${m.accent};">${txt(m.title)}</span>` : '';
+    const c = m.company ? `<span style="color:${MUTED};">${txt(m.company)}</span>` : '';
     return `<div style="font-size:${m.fs}px;line-height:1.5;margin:2px 0 0;">${[t, c].filter(Boolean).join(`<span style="color:${MUTED};">${joiner}</span>`)}</div>`;
   }
 
+  const roleText = (m, sep) => [m.title, m.company].filter(Boolean).map(v => txt(v)).join(sep);
+
   const TABLE = 'cellpadding="0" cellspacing="0" border="0" role="presentation" style="border-collapse:collapse;"';
+  const tableWith = style => TABLE.replace('style="', `style="${style}`);
 
   // Contact icons scale with the text; badges carry their own padding so run a bit larger.
   const iconSize = m => m.fs + (m.iconSet === 'badge' ? 5 : 2);
@@ -171,15 +222,15 @@
     return `<img src="${esc(m.icon(name))}" width="${size}" height="${size}" alt="${esc(alt)}" style="display:inline-block;width:${size}px;height:${size}px;border:0;vertical-align:middle;" />`;
   }
 
-  const contactValue = (m, c) =>
-    c.href ? link(m, c.href, c.text) : `<span style="color:${TEXT};">${esc(c.text)}</span>`;
+  const contactValue = (m, c, color = TEXT) =>
+    c.href ? link(m, c.href, c.text, color, c.dir) : `<span style="color:${color};">${txt(c.text, c.dir)}</span>`;
 
   // One contact per line: [icon | letter] value
   function contactRows(m) {
     if (!m.contacts.length) return '';
     if (m.iconSet) {
       return `<table ${TABLE}>${m.contacts.map(c => `<tr>
-        <td valign="middle" style="padding:2px 8px 2px 0;line-height:0;">${iconImg(m, c.icon)}</td>
+        <td valign="middle" style="${pad(m, 2, 8, 2, 0)}line-height:0;">${iconImg(m, c.icon)}</td>
         <td valign="middle" style="padding:2px 0;font-size:${m.fs}px;line-height:1.5;">${contactValue(m, c)}</td>
       </tr>`).join('')}</table>`;
     }
@@ -190,10 +241,10 @@
   }
 
   // All contacts on one wrapping line
-  function contactInline(m, sep = ' &nbsp;·&nbsp; ', color = TEXT) {
+  function contactInline(m, sep = ' &nbsp;·&nbsp; ') {
     if (!m.contacts.length) return '';
     const items = m.contacts.map(c => {
-      const val = c.href ? link(m, c.href, c.text, color) : `<span style="color:${color};">${esc(c.text)}</span>`;
+      const val = contactValue(m, c);
       if (m.iconSet) return `<span style="white-space:nowrap;">${iconImg(m, c.icon)}&nbsp;${val}</span>`;
       if (m.iconStyle === 'text') return `<span style="white-space:nowrap;"><span style="color:${m.accent};font-weight:bold;">${c.label}</span>&nbsp;${val}</span>`;
       return val;
@@ -205,9 +256,9 @@
   function socialIcons(m) {
     const size = m.iconSet === 'badge' ? 24 : 20;
     const cells = m.socials.map(s =>
-      `<td style="padding:0 8px 0 0;line-height:0;"><a href="${esc(s.href)}" style="text-decoration:none;">${iconImg(m, s.icon, size, s.label)}</a></td>`
+      `<td style="${pad(m, 0, 8, 0, 0)}line-height:0;"><a href="${esc(s.href)}" style="text-decoration:none;">${iconImg(m, s.icon, size, s.label)}</a></td>`
     ).join('');
-    return `<table ${TABLE.replace('style="', 'style="margin-top:10px;')}><tr>${cells}</tr></table>`;
+    return `<table ${tableWith('margin-top:10px;')}><tr>${cells}</tr></table>`;
   }
 
   function socialLine(m, { pill = false } = {}) {
@@ -215,9 +266,9 @@
     if (m.iconSet) return socialIcons(m);
     if (pill) {
       const cells = m.socials.map(s =>
-        `<td style="padding:0 6px 0 0;"><a href="${esc(s.href)}" style="display:inline-block;padding:3px 10px;border:1px solid ${m.accent};border-radius:12px;color:${m.accent};font-size:${m.fs - 1}px;text-decoration:none;">${esc(s.label)}</a></td>`
+        `<td style="${pad(m, 0, 6, 0, 0)}"><a href="${esc(s.href)}" style="display:inline-block;padding:3px 10px;border:1px solid ${m.accent};border-radius:12px;color:${m.accent};font-size:${m.fs - 1}px;text-decoration:none;">${esc(s.label)}</a></td>`
       ).join('');
-      return `<table cellpadding="0" cellspacing="0" border="0" role="presentation" style="border-collapse:collapse;margin-top:10px;"><tr>${cells}</tr></table>`;
+      return `<table ${tableWith('margin-top:10px;')}><tr>${cells}</tr></table>`;
     }
     const items = m.socials.map(s => link(m, s.href, s.label, m.accent));
     return `<div style="font-size:${m.fs}px;line-height:1.6;margin-top:8px;font-weight:bold;">${items.join(`<span style="color:${MUTED};font-weight:normal;"> &nbsp;·&nbsp; </span>`)}</div>`;
@@ -230,20 +281,21 @@
 
   function ctaButton(m) {
     if (!m.cta) return '';
-    return `<table cellpadding="0" cellspacing="0" border="0" role="presentation" style="border-collapse:collapse;margin-top:12px;"><tr><td style="background:${m.accent};border-radius:6px;"><a href="${esc(m.cta.href)}" style="display:inline-block;padding:8px 16px;color:#FFFFFF;font-size:${m.fs}px;font-weight:bold;text-decoration:none;">${esc(m.cta.text)} &rarr;</a></td></tr></table>`;
+    return `<table ${tableWith('margin-top:12px;')}><tr><td style="background:${m.accent};border-radius:6px;"><a href="${esc(m.cta.href)}" style="display:inline-block;padding:8px 16px;color:#FFFFFF;font-size:${m.fs}px;font-weight:bold;text-decoration:none;">${txt(m.cta.text)} ${arrow(m)}</a></td></tr></table>`;
   }
 
   function extras(m) {
     return m.disclaimer
-      ? `<div style="font-size:${m.fs - 2}px;line-height:1.5;color:${MUTED};margin-top:14px;max-width:460px;">${esc(m.disclaimer).replace(/\n/g, '<br />')}</div>`
+      ? `<div style="font-size:${m.fs - 2}px;line-height:1.5;color:${MUTED};margin-top:14px;max-width:460px;">${m.disclaimer.split('\n').map(l => txt(l)).join('<br />')}</div>`
       : '';
   }
 
   const signoff = m => m.signoff
-    ? `<div style="font-size:${m.fs + 1}px;line-height:1.5;color:${TEXT};margin:0 0 12px;">${esc(m.signoff)}</div>` : '';
+    ? `<div style="font-size:${m.fs + 1}px;line-height:1.5;color:${TEXT};margin:0 0 12px;">${txt(m.signoff)}</div>` : '';
 
+  // Direction is set on the table too: some clients don't inherit it into tables.
   const wrap = (m, inner) =>
-    `<table cellpadding="0" cellspacing="0" border="0" role="presentation" style="border-collapse:collapse;font-family:${m.font};color:${TEXT};">${inner}</table>`;
+    `<table dir="${m.dir}" ${tableWith(`direction:${m.dir};text-align:${m.align};font-family:${m.font};color:${TEXT};`)}>${inner}</table>`;
 
   // ---------- Templates ----------
   const TEMPLATES = {
@@ -251,12 +303,12 @@
       name: 'Classic',
       thumb: [['i', 10, 14, 26, 26, '50%'], ['a', 42, 10, 2, 34], ['i', 50, 12, 40, 6], ['a', 50, 22, 28, 4], ['i', 50, 32, 46, 3], ['i', 50, 39, 38, 3]],
       build(m) {
-        const left = m.photo
-          ? `<td valign="top" style="padding:0 16px 0 0;">${photoImg(m)}</td>
+        const lead = m.photo
+          ? `<td valign="top" style="${pad(m, 0, 16, 0, 0)}">${photoImg(m)}</td>
              <td valign="top" style="width:2px;background:${m.accent};font-size:0;line-height:0;">&nbsp;</td>
-             <td valign="top" style="padding:0 0 0 16px;">`
-          : `<td valign="top" style="border-left:2px solid ${m.accent};padding:0 0 0 16px;">`;
-        return signoff(m) + wrap(m, `<tr>${left}
+             <td valign="top" style="${pad(m, 0, 0, 0, 16)}">`
+          : `<td valign="top" style="border-${startSide(m)}:2px solid ${m.accent};${pad(m, 0, 0, 0, 16)}">`;
+        return signoff(m) + wrap(m, `<tr>${lead}
           ${nameLine(m, m.fs + 5)}
           ${roleLine(m)}
           <div style="height:10px;line-height:10px;font-size:0;">&nbsp;</div>
@@ -271,10 +323,11 @@
       name: 'Modern',
       thumb: [['i', 10, 10, 56, 8], ['a', 10, 22, 34, 4], ['a', 10, 31, 90, 1], ['i', 10, 37, 24, 3], ['i', 38, 37, 24, 3], ['i', 66, 37, 24, 3]],
       build(m) {
-        const photo = m.photo ? `<td valign="middle" style="padding:0 18px 0 0;">${photoImg(m)}</td>` : '';
+        const photo = m.photo ? `<td valign="middle" style="${pad(m, 0, 18, 0, 0)}">${photoImg(m)}</td>` : '';
+        const role = roleText(m, ' · ');
         return signoff(m) + wrap(m, `<tr>${photo}<td valign="middle">
           ${nameLine(m, m.fs + 9)}
-          ${m.title || m.company ? `<div style="font-size:${m.fs - 1}px;line-height:1.5;margin-top:4px;letter-spacing:1.5px;text-transform:uppercase;color:${m.accent};font-weight:bold;">${esc([m.title, m.company].filter(Boolean).join(' · '))}</div>` : ''}
+          ${role ? `<div style="font-size:${m.fs - 1}px;line-height:1.5;margin-top:4px;letter-spacing:${m.rtl ? 0 : 1.5}px;text-transform:uppercase;color:${m.accent};font-weight:bold;">${role}</div>` : ''}
           </td></tr>
           <tr><td colspan="${m.photo ? 2 : 1}" style="padding:12px 0 0;">
             <div style="border-top:1px solid ${m.accent};height:1px;line-height:1px;font-size:0;max-width:460px;">&nbsp;</div>
@@ -291,21 +344,21 @@
       name: 'Minimal',
       thumb: [['i', 10, 14, 44, 6], ['i', 10, 25, 64, 3], ['a', 10, 34, 80, 3]],
       build(m) {
-        const role = [m.title, m.company].filter(Boolean).map(esc).join(', ');
+        const role = roleText(m, ', ');
         const contacts = m.contacts.map(c => {
-          const val = c.href ? link(m, c.href, c.text, TEXT) : esc(c.text);
+          const val = contactValue(m, c);
           return m.iconSet ? `<span style="white-space:nowrap;">${iconImg(m, c.icon, m.fs)}&nbsp;${val}</span>` : val;
         });
         const socials = m.iconSet
           ? (m.socials.length ? [m.socials.map(s => `<a href="${esc(s.href)}" style="text-decoration:none;">${iconImg(m, s.icon, m.fs + 3, s.label)}</a>`).join('&nbsp;&nbsp;')] : [])
           : m.socials.map(s => link(m, s.href, s.label, m.accent));
         return signoff(m) + wrap(m, `<tr><td>
-          ${m.name ? `<div style="font-size:${m.fs + 1}px;line-height:1.5;font-weight:bold;color:${TEXT};">${esc(m.name)}${m.pronouns ? ` <span style="font-weight:normal;color:${MUTED};">(${esc(m.pronouns)})</span>` : ''}</div>` : ''}
+          ${m.name ? `<div style="font-size:${m.fs + 1}px;line-height:1.5;font-weight:bold;color:${TEXT};">${txt(m.name)}</div>` : ''}
           ${role ? `<div style="font-size:${m.fs}px;line-height:1.5;color:${MUTED};">${role}</div>` : ''}
           <div style="font-size:${m.fs}px;line-height:1.8;color:${MUTED};margin-top:4px;">
             ${[...contacts, ...socials].join(`<span style="color:#BDB6AB;"> &nbsp;|&nbsp; </span>`)}
           </div>
-          ${m.cta ? `<div style="font-size:${m.fs}px;line-height:1.6;margin-top:6px;">${link(m, m.cta.href, m.cta.text + ' →', m.accent)}</div>` : ''}
+          ${m.cta ? `<div style="font-size:${m.fs}px;line-height:1.6;margin-top:6px;"><a href="${esc(m.cta.href)}" style="color:${m.accent};text-decoration:none;">${txt(m.cta.text)} ${arrow(m)}</a></div>` : ''}
         </td></tr>`) + extras(m);
       },
     },
@@ -318,15 +371,15 @@
           ${m.photo ? `<tr><td style="padding:0 0 12px;">${photoImg(m)}</td></tr>` : ''}
           <tr><td>
             ${nameLine(m, m.fs + 5)}
-            ${roleLine(m, { joiner: ' at ' })}
+            ${roleLine(m, { joiner: m.rtl ? ' · ' : ' at ' })}
           </td></tr>
           <tr><td style="padding:12px 0 0;">
-            <table cellpadding="0" cellspacing="0" border="0" role="presentation" style="border-collapse:collapse;">
+            <table ${TABLE}>
               ${m.contacts.map(c => `<tr>
                 ${m.iconSet
-                  ? `<td style="padding:2px 10px 2px 0;line-height:0;" valign="middle">${iconImg(m, c.icon)}</td>`
+                  ? `<td style="${pad(m, 2, 10, 2, 0)}line-height:0;" valign="middle">${iconImg(m, c.icon)}</td>`
                   : m.iconStyle === 'text'
-                    ? `<td style="padding:0 12px 2px 0;font-size:${m.fs - 1}px;line-height:1.6;color:${m.accent};font-weight:bold;letter-spacing:1px;text-transform:uppercase;" valign="top">${c.word}</td>`
+                    ? `<td style="${pad(m, 0, 12, 2, 0)}font-size:${m.fs - 1}px;line-height:1.6;color:${m.accent};font-weight:bold;letter-spacing:${m.rtl ? 0 : 1}px;text-transform:uppercase;" valign="top">${txt(c.word)}</td>`
                     : ''}
                 <td style="padding:2px 0;font-size:${m.fs}px;line-height:1.6;" valign="middle">${contactValue(m, c)}</td>
               </tr>`).join('')}
@@ -341,14 +394,14 @@
       name: 'Banner',
       thumb: [['a', 8, 8, 96, 22, '4px'], ['i', 12, 36, 30, 3], ['i', 46, 36, 30, 3], ['i', 12, 42, 22, 3]],
       build(m) {
-        const photo = m.photo ? `<td valign="middle" style="padding:0 14px 0 0;">${photoImg(m, Math.min(m.photoSize, 64))}</td>` : '';
-        const role = [m.title, m.company].filter(Boolean).map(esc).join(' · ');
+        const photo = m.photo ? `<td valign="middle" style="${pad(m, 0, 14, 0, 0)}">${photoImg(m, Math.min(m.photoSize, 64))}</td>` : '';
+        const role = roleText(m, ' · ');
         return signoff(m) + wrap(m, `
           <tr><td style="background:${m.accent};border-radius:8px;padding:14px 18px;">
-            <table cellpadding="0" cellspacing="0" border="0" role="presentation" style="border-collapse:collapse;"><tr>
+            <table ${TABLE}><tr>
               ${photo}
               <td valign="middle">
-                ${m.name ? `<div style="font-size:${m.fs + 5}px;line-height:1.25;font-weight:bold;color:#FFFFFF;">${esc(m.name)}${m.pronouns ? ` <span style="font-weight:normal;font-size:${m.fs - 1}px;opacity:.8;">(${esc(m.pronouns)})</span>` : ''}</div>` : ''}
+                ${m.name ? `<div style="font-size:${m.fs + 5}px;line-height:1.25;font-weight:bold;color:#FFFFFF;">${txt(m.name)}</div>` : ''}
                 ${role ? `<div style="font-size:${m.fs}px;line-height:1.5;color:#FFFFFF;opacity:.85;margin-top:2px;">${role}</div>` : ''}
               </td>
             </tr></table>
@@ -392,7 +445,10 @@
   function signatureHtml(forExport = false) {
     const m = model(state, forExport);
     const tpl = TEMPLATES[state.template] || TEMPLATES.classic;
-    return tpl.build(m).replace(/\n\s+/g, '\n').trim();
+    // Explicit direction on the outer wrapper, so an LTR signature stays LTR in a
+    // Hebrew/Arabic mail client and vice versa.
+    const body = tpl.build(m).replace(/\n\s+/g, '\n').trim();
+    return `<div dir="${m.dir}" style="direction:${m.dir};text-align:${m.align};">${body}</div>`;
   }
 
   function hasContent() {
@@ -404,9 +460,37 @@
       ? signatureHtml()
       : '<p class="sig-empty">Start typing on the left — your signature will appear here.</p>';
     syncPhotoUI();
+    syncDir();
     updateHints();
     persist();
   }
+
+  // ---------- Text direction picker ----------
+  function syncDir() {
+    const choice = ['ltr', 'rtl'].includes(state.dir) ? state.dir : 'auto';
+    document.querySelectorAll('#dirPicker [data-dir]').forEach(b =>
+      b.setAttribute('aria-checked', String(b.dataset.dir === choice)));
+    const detected = resolveDir(state) === 'rtl' ? 'right-to-left' : 'left-to-right';
+    $('#dirNote').textContent = choice === 'auto'
+      ? `Using ${detected}, based on your name. Hebrew or Arabic mixed with English works in every mode.`
+      : choice === 'rtl'
+        ? 'Mirrored layout for Hebrew or Arabic. Phone numbers, emails and links stay left-to-right.'
+        : 'Left-to-right layout. Any Hebrew or Arabic text inside it still reads correctly.';
+  }
+
+  $('#dirPicker').addEventListener('click', e => {
+    const btn = e.target.closest('[data-dir]');
+    if (!btn) return;
+    state.dir = btn.dataset.dir;
+    render();
+  });
+
+  // Let the form fields follow what's typed in them (Hebrew aligns right),
+  // while numbers, emails and links always stay left-to-right.
+  document.querySelectorAll('[data-key]').forEach(el => {
+    if (el.matches('input[type="text"], textarea')) el.dir = 'auto';
+    else if (el.matches('input[type="email"], input[type="tel"], input[type="url"]')) el.dir = 'ltr';
+  });
 
   // ---------- Field hints ----------
   // Invalid values are left out of the signature; say so instead of silently dropping them.
@@ -860,8 +944,8 @@ ${signatureHtml(true)}
     flash('Cleared.');
   });
 
-  document.querySelectorAll('.seg-btn').forEach(btn => btn.addEventListener('click', () => {
-    document.querySelectorAll('.seg-btn').forEach(b => b.classList.toggle('is-active', b === btn));
+  document.querySelectorAll('.preview-head .seg-btn').forEach(btn => btn.addEventListener('click', () => {
+    document.querySelectorAll('.preview-head .seg-btn').forEach(b => b.classList.toggle('is-active', b === btn));
     $('#mail').classList.toggle('is-mobile', btn.dataset.view === 'mobile');
   }));
 
