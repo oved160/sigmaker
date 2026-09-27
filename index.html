@@ -104,11 +104,16 @@
               </label>
               <button type="button" class="link-btn" id="photoRemove" hidden>Remove</button>
             </div>
-            <p class="upload-status" id="uploadStatus">PNG, JPG or WebP. Resized in your browser before upload.</p>
+            <p class="upload-status" id="uploadStatus">PNG, JPG or WebP. Stays in your browser — nothing is uploaded.</p>
           </div>
         </div>
+        <label class="toggle host-toggle">
+          <input type="checkbox" id="photoHost" />
+          <span class="toggle-ui" aria-hidden="true"></span>
+          <span>Also host my photo online <em>only if your email app drops the photo</em></span>
+        </label>
         <label class="field full upload-url">
-          <span>…or paste an image link</span>
+          <span>…or paste an image link <em>Google Drive &amp; Dropbox links work</em></span>
           <input type="url" data-key="photo" placeholder="https://…/headshot.jpg" />
         </label>
         <div class="row">
@@ -132,7 +137,7 @@
             <input type="range" data-key="photoSize" min="48" max="120" step="4" />
           </label>
         </div>
-        <p class="hint">Email clients can only show images that live online, so an uploaded image is stored at a random, unguessable link. Nothing else about you is sent anywhere.</p>
+        <p class="hint">Your photo is embedded in the signature itself, and Gmail keeps a copy inside every email you send — so it never depends on a server. Hosting stores it at a random, unguessable link instead.</p>
       </fieldset>
 
       <fieldset class="group">
@@ -244,7 +249,8 @@
           <summary>How to install your signature</summary>
           <dl>
             <dt>Gmail</dt>
-            <dd>Settings → See all settings → General → Signature → Create new. Click <b>Copy signature</b> above and paste into the box.</dd>
+            <dd>Settings → See all settings → General → Signature → Create new. Click <b>Copy signature</b> above and paste into the box.
+              Gmail sets the signature's direction itself: select the signature and use the editor's <b>right-to-left</b> or <b>left-to-right</b> button to match. If it looks shifted, click <b>Indent less</b> until it lines up.</dd>
             <dt>Outlook (web / new Outlook)</dt>
             <dd>Settings → Mail → Compose and reply → Email signature. Paste with <b>Copy signature</b>.</dd>
             <dt>Apple Mail</dt>

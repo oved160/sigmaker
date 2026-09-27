@@ -18,7 +18,9 @@
     twitter: '',
     portfolio: '',
     photo: '',
-    photoData: '',
+    photoData: '',   // processed photo embedded in the signature (data URI)
+    photoOrig: '',   // downscaled original, for re-applying shape/fit
+    photoHost: false, // opt-in: also upload to Vercel Blob and link to it
     photoFit: 'cover',
     photoShape: 'circle',
     photoSize: '72',
@@ -51,7 +53,7 @@
 
   const EMPTY = Object.fromEntries(Object.keys(SAMPLE).map(k => [k, '']));
   Object.assign(EMPTY, {
-    photoShape: 'circle', photoFit: 'cover', photoSize: '72', font: SAMPLE.font, fontSize: '13',
+    photoShape: 'circle', photoFit: 'cover', photoHost: false, photoSize: '72', font: SAMPLE.font, fontSize: '13',
     accent: '#2C2C2C', iconStyle: 'line', dir: 'auto', template: 'classic',
   });
 
@@ -83,6 +85,35 @@
     return toUrl(v);
   }
 
+  // Pasted photo links: turn share-page links into direct image links where
+  // possible, and recognise links that won't work in email.
+  function photoLink(raw) {
+    const href = toUrl(raw);
+    if (!href) return { url: '' };
+    const u = new URL(href);
+    const host = u.hostname.replace(/^www\./, '');
+
+    if (host === 'drive.google.com' || host === 'docs.google.com') {
+      const id = (u.pathname.match(/\/file\/d\/([\w-]{10,})/) || [])[1] || u.searchParams.get('id');
+      if (id && /^[\w-]{10,}$/.test(id)) {
+        return { url: `https://lh3.googleusercontent.com/d/${id}`, note: 'Google Drive link converted to a direct image link. Make sure the file is shared as “Anyone with the link”.' };
+      }
+      return { url: '', problem: 'This Google Drive link doesn’t point to a single file. Open the image in Drive, choose Share → Copy link, and paste that.' };
+    }
+    if (host === 'dropbox.com' || host === 'dl.dropboxusercontent.com') {
+      u.searchParams.delete('dl');
+      u.searchParams.set('raw', '1');
+      return { url: u.href, note: 'Dropbox link converted to a direct image link.' };
+    }
+    if (host === 'photos.app.goo.gl' || host === 'photos.google.com') {
+      return { url: '', problem: 'Google Photos links open a web page, not the image. Download the photo and use Upload image instead.' };
+    }
+    if (host.endsWith('licdn.com')) {
+      return { url: href, problem: 'LinkedIn photo links expire after a few weeks, so the photo would disappear from your signature. Use Upload image instead.' };
+    }
+    return { url: href };
+  }
+
   const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i;
   const PHONE_RE = /^\+?[\d\s().\-\/]+$/;
   const prettyUrl = href => href.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '');
@@ -107,10 +138,19 @@
     return '';
   }
 
-  // 'auto' follows the first letter of the name (or title/company).
+  // 'auto' goes with whichever script most of the details are written in
+  // (name, title, company, location), so an English name with a Hebrew title
+  // and company still gets a right-to-left layout. Ties follow the name.
   function resolveDir(s) {
     if (s.dir === 'rtl' || s.dir === 'ltr') return s.dir;
-    return firstStrongDir([s.name, s.title, s.company].join(' ')) || 'ltr';
+    const text = [s.name, s.title, s.company, s.address].join(' ');
+    let rtl = 0, ltr = 0;
+    for (const ch of text) {
+      if (RTL_CHAR.test(ch)) rtl++;
+      else if (LTR_CHAR.test(ch)) ltr++;
+    }
+    if (rtl !== ltr) return rtl > ltr ? 'rtl' : 'ltr';
+    return firstStrongDir(text) || 'ltr';
   }
 
   // Contact labels for the Stacked template, matched to the script in use.
@@ -161,12 +201,12 @@
     return {
       iconStyle, iconSet,
       icon: name => iconSrc(iconSet, name, accent, forExport),
-      dir, rtl: dir === 'rtl', align: dir === 'rtl' ? 'right' : 'left',
+      dir, rtl: dir === 'rtl',
       name: s.name.trim(),
       title: s.title.trim(),
       company: s.company.trim(),
       // A hosted link wins; an embedded image is the fallback when hosting isn't available.
-      photo: toUrl(s.photo) || (isImageData(s.photoData) ? s.photoData : ''),
+      photo: photoLink(s.photo).url || (isImageData(s.photoData) ? s.photoData : ''),
       photoFit: s.photoFit === 'contain' ? 'contain' : 'cover',
       photoSize, radius,
       // Only fonts offered in the picker (values are trusted, never user-typed)
@@ -192,9 +232,12 @@
   const link = (m, href, text, color = TEXT, dir = 'auto') =>
     `<a href="${esc(href)}" dir="${dir}" style="color:${color};text-decoration:none;">${esc(text)}</a>`;
 
-  // Logical padding: (top, end, bottom, start) → physical CSS for the layout direction.
-  const pad = (m, t, e, b, s) => `padding:${t}px ${m.rtl ? s : e}px ${b}px ${m.rtl ? e : s}px;`;
-  const startSide = m => (m.rtl ? 'right' : 'left');
+  // Gap between table columns. Mail apps (Gmail especially) strip `dir` from
+  // tables and decide column order from their own editor direction, so gaps are
+  // separate empty columns rather than one-sided padding: the layout then looks
+  // right whichever way the columns end up running.
+  const spacer = w =>
+    `<td width="${w}" style="width:${w}px;min-width:${w}px;font-size:0;line-height:0;">&nbsp;</td>`;
   const arrow = m => (m.rtl ? '&larr;' : '&rarr;');
 
   function nameLine(m, size) {
@@ -230,7 +273,7 @@
     if (!m.contacts.length) return '';
     if (m.iconSet) {
       return `<table ${TABLE}>${m.contacts.map(c => `<tr>
-        <td valign="middle" style="${pad(m, 2, 8, 2, 0)}line-height:0;">${iconImg(m, c.icon)}</td>
+        <td valign="middle" style="padding:2px 0;line-height:0;">${iconImg(m, c.icon)}</td>${spacer(8)}
         <td valign="middle" style="padding:2px 0;font-size:${m.fs}px;line-height:1.5;">${contactValue(m, c)}</td>
       </tr>`).join('')}</table>`;
     }
@@ -256,8 +299,8 @@
   function socialIcons(m) {
     const size = m.iconSet === 'badge' ? 24 : 20;
     const cells = m.socials.map(s =>
-      `<td style="${pad(m, 0, 8, 0, 0)}line-height:0;"><a href="${esc(s.href)}" style="text-decoration:none;">${iconImg(m, s.icon, size, s.label)}</a></td>`
-    ).join('');
+      `<td style="line-height:0;"><a href="${esc(s.href)}" style="text-decoration:none;">${iconImg(m, s.icon, size, s.label)}</a></td>`
+    ).join(spacer(8));
     return `<table ${tableWith('margin-top:10px;')}><tr>${cells}</tr></table>`;
   }
 
@@ -266,8 +309,8 @@
     if (m.iconSet) return socialIcons(m);
     if (pill) {
       const cells = m.socials.map(s =>
-        `<td style="${pad(m, 0, 6, 0, 0)}"><a href="${esc(s.href)}" style="display:inline-block;padding:3px 10px;border:1px solid ${m.accent};border-radius:12px;color:${m.accent};font-size:${m.fs - 1}px;text-decoration:none;">${esc(s.label)}</a></td>`
-      ).join('');
+        `<td><a href="${esc(s.href)}" style="display:inline-block;padding:3px 10px;border:1px solid ${m.accent};border-radius:12px;color:${m.accent};font-size:${m.fs - 1}px;text-decoration:none;">${esc(s.label)}</a></td>`
+      ).join(spacer(6));
       return `<table ${tableWith('margin-top:10px;')}><tr>${cells}</tr></table>`;
     }
     const items = m.socials.map(s => link(m, s.href, s.label, m.accent));
@@ -295,7 +338,7 @@
 
   // Direction is set on the table too: some clients don't inherit it into tables.
   const wrap = (m, inner) =>
-    `<table dir="${m.dir}" ${tableWith(`direction:${m.dir};text-align:${m.align};font-family:${m.font};color:${TEXT};`)}>${inner}</table>`;
+    `<table dir="${m.dir}" ${tableWith(`direction:${m.dir};font-family:${m.font};color:${TEXT};`)}>${inner}</table>`;
 
   // ---------- Templates ----------
   const TEMPLATES = {
@@ -303,11 +346,10 @@
       name: 'Classic',
       thumb: [['i', 10, 14, 26, 26, '50%'], ['a', 42, 10, 2, 34], ['i', 50, 12, 40, 6], ['a', 50, 22, 28, 4], ['i', 50, 32, 46, 3], ['i', 50, 39, 38, 3]],
       build(m) {
+        const divider = `<td width="2" valign="top" style="width:2px;background:${m.accent};font-size:0;line-height:0;">&nbsp;</td>`;
         const lead = m.photo
-          ? `<td valign="top" style="${pad(m, 0, 16, 0, 0)}">${photoImg(m)}</td>
-             <td valign="top" style="width:2px;background:${m.accent};font-size:0;line-height:0;">&nbsp;</td>
-             <td valign="top" style="${pad(m, 0, 0, 0, 16)}">`
-          : `<td valign="top" style="border-${startSide(m)}:2px solid ${m.accent};${pad(m, 0, 0, 0, 16)}">`;
+          ? `<td valign="top">${photoImg(m)}</td>${spacer(16)}${divider}${spacer(16)}<td valign="top">`
+          : `${divider}${spacer(16)}<td valign="top">`;
         return signoff(m) + wrap(m, `<tr>${lead}
           ${nameLine(m, m.fs + 5)}
           ${roleLine(m)}
@@ -323,16 +365,16 @@
       name: 'Modern',
       thumb: [['i', 10, 10, 56, 8], ['a', 10, 22, 34, 4], ['a', 10, 31, 90, 1], ['i', 10, 37, 24, 3], ['i', 38, 37, 24, 3], ['i', 66, 37, 24, 3]],
       build(m) {
-        const photo = m.photo ? `<td valign="middle" style="${pad(m, 0, 18, 0, 0)}">${photoImg(m)}</td>` : '';
+        const photo = m.photo ? `<td valign="middle">${photoImg(m)}</td>${spacer(18)}` : '';
         const role = roleText(m, ' · ');
         return signoff(m) + wrap(m, `<tr>${photo}<td valign="middle">
           ${nameLine(m, m.fs + 9)}
           ${role ? `<div style="font-size:${m.fs - 1}px;line-height:1.5;margin-top:4px;letter-spacing:${m.rtl ? 0 : 1.5}px;text-transform:uppercase;color:${m.accent};font-weight:bold;">${role}</div>` : ''}
           </td></tr>
-          <tr><td colspan="${m.photo ? 2 : 1}" style="padding:12px 0 0;">
+          <tr><td colspan="${m.photo ? 3 : 1}" style="padding:12px 0 0;">
             <div style="border-top:1px solid ${m.accent};height:1px;line-height:1px;font-size:0;max-width:460px;">&nbsp;</div>
           </td></tr>
-          <tr><td colspan="${m.photo ? 2 : 1}" style="padding:10px 0 0;">
+          <tr><td colspan="${m.photo ? 3 : 1}" style="padding:10px 0 0;">
             ${contactInline(m)}
             ${socialLine(m, { pill: true })}
             ${ctaButton(m)}
@@ -377,9 +419,9 @@
             <table ${TABLE}>
               ${m.contacts.map(c => `<tr>
                 ${m.iconSet
-                  ? `<td style="${pad(m, 2, 10, 2, 0)}line-height:0;" valign="middle">${iconImg(m, c.icon)}</td>`
+                  ? `<td style="padding:2px 0;line-height:0;" valign="middle">${iconImg(m, c.icon)}</td>${spacer(10)}`
                   : m.iconStyle === 'text'
-                    ? `<td style="${pad(m, 0, 12, 2, 0)}font-size:${m.fs - 1}px;line-height:1.6;color:${m.accent};font-weight:bold;letter-spacing:${m.rtl ? 0 : 1}px;text-transform:uppercase;" valign="top">${txt(c.word)}</td>`
+                    ? `<td style="padding:0 0 2px;font-size:${m.fs - 1}px;line-height:1.6;color:${m.accent};font-weight:bold;letter-spacing:${m.rtl ? 0 : 1}px;text-transform:uppercase;" valign="top">${txt(c.word)}</td>${spacer(12)}`
                     : ''}
                 <td style="padding:2px 0;font-size:${m.fs}px;line-height:1.6;" valign="middle">${contactValue(m, c)}</td>
               </tr>`).join('')}
@@ -394,7 +436,7 @@
       name: 'Banner',
       thumb: [['a', 8, 8, 96, 22, '4px'], ['i', 12, 36, 30, 3], ['i', 46, 36, 30, 3], ['i', 12, 42, 22, 3]],
       build(m) {
-        const photo = m.photo ? `<td valign="middle" style="${pad(m, 0, 14, 0, 0)}">${photoImg(m, Math.min(m.photoSize, 64))}</td>` : '';
+        const photo = m.photo ? `<td valign="middle">${photoImg(m, Math.min(m.photoSize, 64))}</td>${spacer(14)}` : '';
         const role = roleText(m, ' · ');
         return signoff(m) + wrap(m, `
           <tr><td style="background:${m.accent};border-radius:8px;padding:14px 18px;">
@@ -448,7 +490,7 @@
     // Explicit direction on the outer wrapper, so an LTR signature stays LTR in a
     // Hebrew/Arabic mail client and vice versa.
     const body = tpl.build(m).replace(/\n\s+/g, '\n').trim();
-    return `<div dir="${m.dir}" style="direction:${m.dir};text-align:${m.align};">${body}</div>`;
+    return `<div dir="${m.dir}" style="direction:${m.dir};">${body}</div>`;
   }
 
   function hasContent() {
@@ -461,6 +503,7 @@
       : '<p class="sig-empty">Start typing on the left — your signature will appear here.</p>';
     syncPhotoUI();
     syncDir();
+    watchPhoto();
     updateHints();
     persist();
   }
@@ -472,7 +515,7 @@
       b.setAttribute('aria-checked', String(b.dataset.dir === choice)));
     const detected = resolveDir(state) === 'rtl' ? 'right-to-left' : 'left-to-right';
     $('#dirNote').textContent = choice === 'auto'
-      ? `Using ${detected}, based on your name. Hebrew or Arabic mixed with English works in every mode.`
+      ? `Using ${detected}, based on the language of your details. Hebrew or Arabic mixed with English works in every mode.`
       : choice === 'rtl'
         ? 'Mirrored layout for Hebrew or Arabic. Phone numbers, emails and links stay left-to-right.'
         : 'Left-to-right layout. Any Hebrew or Arabic text inside it still reads correctly.';
@@ -495,6 +538,19 @@
   // ---------- Field hints ----------
   // Invalid values are left out of the signature; say so instead of silently dropping them.
   const touched = new Set();
+  let photoFailedFor = ''; // pasted image URL that failed to load in the preview
+
+  // Watch the preview's photo so broken or private links are reported.
+  function watchPhoto() {
+    const url = photoLink(state.photo).url;
+    if (!url) return;
+    const img = [...preview.querySelectorAll('img')].find(i => i.getAttribute('src') === url);
+    if (!img) return;
+    img.addEventListener('error', () => { photoFailedFor = url; updateHints(); }, { once: true });
+    img.addEventListener('load', () => {
+      if (photoFailedFor === url) { photoFailedFor = ''; updateHints(); }
+    }, { once: true });
+  }
 
   function fieldIssue(key) {
     const v = String(state[key] || '').trim();
@@ -507,8 +563,16 @@
         return v && !PHONE_RE.test(v) ? 'Use only digits, spaces and + ( ) - so tap-to-call works.' : '';
       case 'linkedin': case 'github': case 'twitter':
         return v && !profileUrl(key, v) ? 'Enter a profile link or username — this one is left out.' : '';
-      case 'website': case 'portfolio': case 'photo':
+      case 'website': case 'portfolio':
         return v && !toUrl(v) ? 'Enter a web address like example.com — this one is left out.' : '';
+      case 'photo': {
+        if (!v) return '';
+        if (!toUrl(v)) return 'Enter an image link starting with https:// — or use Upload image above.';
+        const p = photoLink(v);
+        if (p.problem) return p.problem;
+        if (p.url && photoFailedFor === p.url) return 'This image couldn’t be loaded. Check the link is public (not private or sign-in only), or use Upload image above.';
+        return '';
+      }
       case 'ctaUrl':
         if (v && !hasCtaUrl) return 'Enter a web address like cal.com/you — the button is hidden until then.';
         return !v && hasCtaText ? 'Add a link — the button only appears once it has one.' : '';
@@ -527,11 +591,14 @@
       const key = el.dataset.key;
       const hint = document.getElementById(`hint-${key}`);
       if (!hint) return;
-      const show = touched.has(key) || touched.has(PARTNER[key]);
-      const msg = show ? fieldIssue(key) : '';
-      hint.textContent = msg;
-      hint.hidden = !msg;
-      el.setAttribute('aria-invalid', String(!!msg));
+      // Pasted image links get feedback straight away; other fields after first blur.
+      const show = key === 'photo' || touched.has(key) || touched.has(PARTNER[key]);
+      const problem = show ? fieldIssue(key) : '';
+      const note = !problem && key === 'photo' ? photoLink(state.photo).note || '' : '';
+      hint.textContent = problem || note;
+      hint.hidden = !(problem || note);
+      hint.classList.toggle('is-info', !!note);
+      el.setAttribute('aria-invalid', String(!!problem));
     });
   }
 
@@ -547,17 +614,23 @@
     });
   }
 
-  // ---------- Photo upload ----------
-  // The image is squared and shrunk to 240px (2× the largest display size) in the
-  // browser, then hosted via /api/upload so every email client can load it.
-  // If hosting isn't available it's embedded as a data URI instead.
+  // ---------- Photo ----------
+  // By default the photo never leaves the browser: it's cropped, shaped and
+  // shrunk to 240px (2× the largest display size), then embedded in the
+  // signature as a data URI. Gmail turns that into an inline attachment of
+  // every email sent, so it can't break later. Hosting via /api/upload is an
+  // opt-in for mail apps that drop embedded images.
+  //
+  // state.photoOrig keeps a downscaled copy of the original so shape/fit
+  // changes can be re-applied later, even after a reload.
   const IMG_PX = 240;
+  const ORIG_PX = 480;
   const uploadEl = $('#upload');
   const uploadStatus = $('#uploadStatus');
+  const hostToggle = $('#photoHost');
   const DEFAULT_UPLOAD_MSG = uploadStatus.textContent;
-  const EMBED_MSG = 'Couldn’t host the image, so it’s embedded in the signature. That works in Apple Mail and Outlook desktop, but Gmail removes embedded images — for Gmail, paste a hosted image link below.';
-  const HOSTED_MSG = 'Image hosted — it will show in Gmail, Outlook and Apple Mail, with its shape built in.';
-  let lastFile = null;
+  const EMBEDDED_MSG = 'Photo added and embedded in your signature — nothing was uploaded.';
+  const HOSTED_MSG = 'Photo hosted online — it loads from a link in every email app.';
   let uploadSeq = 0;
 
   function setUploadStatus(msg, tone = '') {
@@ -566,32 +639,51 @@
   }
 
   function syncPhotoUI() {
-    const src = toUrl(state.photo) || (isImageData(state.photoData) ? state.photoData : '');
+    const src = photoLink(state.photo).url || (isImageData(state.photoData) ? state.photoData : '');
     const thumb = $('#uploadThumb');
     thumb.style.backgroundImage = src ? `url("${src.replace(/"/g, '%22')}")` : '';
     thumb.style.backgroundSize = state.photoFit === 'contain' ? 'contain' : 'cover';
     thumb.style.borderRadius = state.photoShape === 'circle' ? '50%' : state.photoShape === 'rounded' ? '10px' : '4px';
     $('#photoRemove').hidden = !src;
     $('#uploadLabel').textContent = src ? 'Replace image' : 'Upload image';
+    hostToggle.checked = !!state.photoHost;
   }
 
-  async function loadImage(file) {
-    if (window.createImageBitmap) {
+  // Accepts a File/Blob or a data: URL string.
+  async function loadImage(source) {
+    if (source instanceof Blob && window.createImageBitmap) {
       try {
-        const bmp = await createImageBitmap(file);
+        const bmp = await createImageBitmap(source);
         return { src: bmp, sw: bmp.width, sh: bmp.height };
       } catch { /* fall through (e.g. older Safari with some formats) */ }
     }
-    const objUrl = URL.createObjectURL(file);
+    const objUrl = source instanceof Blob ? URL.createObjectURL(source) : '';
     try {
       const img = new Image();
-      await new Promise((resolve, reject) => { img.onload = resolve; img.onerror = reject; img.src = objUrl; });
+      await new Promise((resolve, reject) => { img.onload = resolve; img.onerror = reject; img.src = objUrl || source; });
       return { src: img, sw: img.naturalWidth, sh: img.naturalHeight };
-    } finally { URL.revokeObjectURL(objUrl); }
+    } finally { if (objUrl) URL.revokeObjectURL(objUrl); }
   }
 
-  async function prepareImage(file, fit, shape) {
-    const { src: img, sw, sh } = await loadImage(file);
+  const toBlob = (canvas, type) => new Promise(r => canvas.toBlob(r, type, 0.88));
+
+  // Downscaled original, kept (as a data URL) so the photo can be re-shaped later.
+  async function makeOriginal(file) {
+    const { src, sw, sh } = await loadImage(file);
+    const s = Math.min(1, ORIG_PX / Math.max(sw, sh));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(sw * s);
+    canvas.height = Math.round(sh * s);
+    const ctx = canvas.getContext('2d');
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(src, 0, 0, canvas.width, canvas.height);
+    // Keep PNG for sources that may be transparent logos.
+    return canvas.toDataURL(file.type === 'image/jpeg' ? 'image/jpeg' : 'image/png', 0.9);
+  }
+
+  async function prepareImage(source, fit, shape) {
+    const { src: img, sw, sh } = await loadImage(source);
+    const fromJpeg = typeof source === 'string' ? source.startsWith('data:image/jpeg') : source.type === 'image/jpeg';
 
     const canvas = document.createElement('canvas');
     canvas.width = canvas.height = IMG_PX;
@@ -602,7 +694,7 @@
     // into the image itself (transparent corners, hence PNG). Square photos stay
     // compact JPEGs on white; square logos keep their transparency.
     const shaped = shape === 'circle' || shape === 'rounded';
-    const transparent = shaped || (fit === 'contain' && file.type !== 'image/jpeg');
+    const transparent = shaped || (fit === 'contain' && !fromJpeg);
     const type = transparent ? 'image/png' : 'image/jpeg';
 
     if (shaped) {
@@ -621,8 +713,7 @@
       const side = Math.min(sw, sh);
       ctx.drawImage(img, (sw - side) / 2, (sh - side) / 2, side, side, 0, 0, IMG_PX, IMG_PX);
     }
-    const blob = await new Promise(r => canvas.toBlob(r, type, 0.88));
-    return { blob, dataUrl: canvas.toDataURL(type, 0.88) };
+    return { blob: await toBlob(canvas, type), dataUrl: canvas.toDataURL(type, 0.88) };
   }
 
   async function hostImage(blob) {
@@ -637,24 +728,19 @@
     return data.url;
   }
 
-  // Hosted URLs for the current file, per fit+shape, so toggling back and
+  // Hosted URLs for the current photo, per fit+shape, so toggling back and
   // forth between options doesn't upload the same image again.
   let variants = new Map();
 
-  async function handleFile(file) {
-    if (!file) return;
-    if (!/^image\/(png|jpeg|webp|gif)$/.test(file.type)) return setUploadStatus('Please choose a PNG, JPG or WebP image.', 'warn');
-    if (file.size > 15 * 1024 * 1024) return setUploadStatus('That image is over 15 MB — please pick a smaller one.', 'warn');
-
-    if (file !== lastFile) variants = new Map();
-    lastFile = file;
-    const variantKey = `${state.photoFit}|${state.photoShape}`;
+  // (Re)build the signature photo from state.photoOrig with the current options.
+  async function applyPhoto() {
+    if (!isImageData(state.photoOrig)) return;
     const seq = ++uploadSeq;
     const label = $('#uploadLabel').parentElement;
+    const key = `${state.photoFit}|${state.photoShape}`;
 
-    if (variants.has(variantKey)) {
-      state.photo = variants.get(variantKey);
-      state.photoData = '';
+    if (state.photoHost && variants.has(key)) {
+      state.photo = variants.get(key);
       setUploadStatus(HOSTED_MSG, 'ok');
       syncFields();
       render();
@@ -662,29 +748,29 @@
     }
 
     label.classList.add('is-busy');
-    setUploadStatus('Preparing image…');
-
     try {
-      const { blob, dataUrl } = await prepareImage(file, state.photoFit, state.photoShape);
+      const { blob, dataUrl } = await prepareImage(state.photoOrig, state.photoFit, state.photoShape);
       if (seq !== uploadSeq) return;
-      // Show it immediately while the upload runs.
       state.photoData = dataUrl;
       state.photo = '';
       syncFields();
       render();
 
+      if (!state.photoHost) {
+        setUploadStatus(EMBEDDED_MSG, 'ok');
+        return;
+      }
       setUploadStatus('Uploading…');
       try {
         const url = await hostImage(blob);
         if (seq !== uploadSeq) return;
-        variants.set(variantKey, url);
+        variants.set(key, url);
         state.photo = url;
-        state.photoData = '';
         setUploadStatus(HOSTED_MSG, 'ok');
       } catch (err) {
         if (seq !== uploadSeq) return;
         console.warn('Image hosting unavailable:', err.message);
-        setUploadStatus(err.status === 429 ? `${err.message} Until then the image is embedded, which Gmail won’t show.` : EMBED_MSG, 'warn');
+        setUploadStatus(`${err.status === 429 ? err.message : 'Couldn’t host the photo online.'} It’s embedded in the signature instead, which works in Gmail.`, 'warn');
       }
       syncFields();
       render();
@@ -695,12 +781,26 @@
     }
   }
 
+  async function handleFile(file) {
+    if (!file) return;
+    if (!/^image\/(png|jpeg|webp|gif)$/.test(file.type)) return setUploadStatus('Please choose a PNG, JPG or WebP image.', 'warn');
+    if (file.size > 15 * 1024 * 1024) return setUploadStatus('That image is over 15 MB — please pick a smaller one.', 'warn');
+    setUploadStatus('Preparing image…');
+    try {
+      state.photoOrig = await makeOriginal(file);
+    } catch {
+      return setUploadStatus('Couldn’t read that image. Try a PNG or JPG.', 'warn');
+    }
+    variants = new Map();
+    await applyPhoto();
+  }
+
   function clearPhoto(msg = DEFAULT_UPLOAD_MSG) {
     uploadSeq++;
-    lastFile = null;
     variants = new Map();
     state.photo = '';
     state.photoData = '';
+    state.photoOrig = '';
     $('#uploadLabel').parentElement.classList.remove('is-busy');
     setUploadStatus(msg);
   }
@@ -710,6 +810,11 @@
     e.target.value = '';
   });
   $('#photoRemove').addEventListener('click', () => { clearPhoto(); syncFields(); render(); });
+  hostToggle.addEventListener('change', () => {
+    state.photoHost = hostToggle.checked;
+    if (isImageData(state.photoOrig)) applyPhoto();
+    else persist();
+  });
 
   ['dragenter', 'dragover'].forEach(t => uploadEl.addEventListener(t, e => {
     e.preventDefault();
@@ -831,10 +936,16 @@
         const key = el.dataset.key;
         state[key] = el.value;
         // A pasted link replaces any uploaded image.
-        if (key === 'photo') { uploadSeq++; lastFile = null; state.photoData = ''; setUploadStatus(DEFAULT_UPLOAD_MSG); }
+        if (key === 'photo') {
+          uploadSeq++;
+          variants = new Map();
+          state.photoData = '';
+          state.photoOrig = '';
+          setUploadStatus(DEFAULT_UPLOAD_MSG);
+        }
         render();
         // Fit and shape are baked into uploaded images, so re-process the file.
-        if ((key === 'photoFit' || key === 'photoShape') && lastFile) handleFile(lastFile);
+        if (key === 'photoFit' || key === 'photoShape') applyPhoto();
       });
     });
   }
@@ -933,7 +1044,7 @@ ${signatureHtml(true)}
     flash(remember ? 'Saved on this device only.' : 'Removed from this device.');
   });
 
-  if (!toUrl(state.photo) && isImageData(state.photoData)) setUploadStatus(EMBED_MSG, 'warn');
+  if (isImageData(state.photoOrig)) setUploadStatus(state.photoHost && toUrl(state.photo) ? HOSTED_MSG : EMBEDDED_MSG, 'ok');
 
   $('#reset').addEventListener('click', () => {
     clearPhoto();
