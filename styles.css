@@ -142,6 +142,9 @@ body {
 .upload-status.is-warn { color: #9A6A2F; }
 .upload-status.is-ok { color: #5F7560; }
 .upload-url { margin-top: 14px; }
+.site-card-opts { margin-top: 16px; font-size: 13.5px; }
+.site-card-opts .toggle em { font-style: normal; color: var(--muted); margin-left: 4px; }
+.site-card-opts .field { margin-top: 12px; }
 .host-toggle { margin-top: 12px; font-size: 13.5px; }
 .host-toggle em { font-style: normal; color: var(--muted); margin-left: 4px; }
 .btn.small { flex: none; padding: 8px 14px; font-size: 13px; display: inline-block; }

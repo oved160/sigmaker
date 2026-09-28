@@ -22,6 +22,10 @@
     photoOrig: '',   // downscaled original, for re-applying shape/fit
     photoHost: false, // opt-in: also upload to Vercel Blob and link to it
     photoFit: 'cover',
+    siteCard: false,       // show a link-preview card for the website
+    siteCardTitle: '',
+    siteCardImage: '',     // cropped preview image, embedded (data URI)
+    siteCardFor: '',       // website URL the card was fetched for
     photoShape: 'circle',
     photoSize: '72',
     font: 'Helvetica, Arial, sans-serif',
@@ -53,7 +57,7 @@
 
   const EMPTY = Object.fromEntries(Object.keys(SAMPLE).map(k => [k, '']));
   Object.assign(EMPTY, {
-    photoShape: 'circle', photoFit: 'cover', photoHost: false, photoSize: '72', font: SAMPLE.font, fontSize: '13',
+    photoShape: 'circle', photoFit: 'cover', photoHost: false, siteCard: false, photoSize: '72', font: SAMPLE.font, fontSize: '13',
     accent: '#2C2C2C', iconStyle: 'line', dir: 'auto', template: 'classic',
   });
 
@@ -216,6 +220,13 @@
       signoff: s.signoff.trim(),
       cta: s.ctaText.trim() && toUrl(s.ctaUrl) ? { text: s.ctaText.trim(), href: toUrl(s.ctaUrl) } : null,
       disclaimer: s.disclaimer.trim(),
+      // Only show a card that was fetched for the current website.
+      siteCard: s.siteCard && site && s.siteCardFor === site ? {
+        href: site,
+        host: new URL(site).hostname.replace(/^www\./, ''),
+        title: String(s.siteCardTitle || '').trim(),
+        image: isImageData(s.siteCardImage) ? s.siteCardImage : '',
+      } : null,
     };
   }
 
@@ -327,10 +338,32 @@
     return `<table ${tableWith('margin-top:12px;')}><tr><td style="background:${m.accent};border-radius:6px;"><a href="${esc(m.cta.href)}" style="display:inline-block;padding:8px 16px;color:#FFFFFF;font-size:${m.fs}px;font-weight:bold;text-decoration:none;">${txt(m.cta.text)} ${arrow(m)}</a></td></tr></table>`;
   }
 
-  function extras(m) {
-    return m.disclaimer
-      ? `<div style="font-size:${m.fs - 2}px;line-height:1.5;color:${MUTED};margin-top:14px;max-width:460px;">${m.disclaimer.split('\n').map(l => txt(l)).join('<br />')}</div>`
+  // Link-preview card for the website: image on top, title and domain below,
+  // the whole card clickable.
+  const CARD_W = 300;
+  const CARD_H = Math.round(CARD_W / 1.91); // standard og:image ratio
+
+  function siteCard(m) {
+    const c = m.siteCard;
+    if (!c) return '';
+    const img = c.image
+      ? `<tr><td style="padding:0;line-height:0;"><a href="${esc(c.href)}" style="text-decoration:none;"><img src="${esc(c.image)}" width="${CARD_W}" height="${CARD_H}" alt="${esc(c.title || c.host)}" style="display:block;width:${CARD_W}px;height:${CARD_H}px;border:0;border-radius:8px 8px 0 0;" /></a></td></tr>`
       : '';
+    return `<table ${tableWith(`margin-top:14px;width:${CARD_W}px;border-collapse:separate;border:1px solid #E5E0D8;border-radius:8px;`)} width="${CARD_W}">
+      ${img}
+      <tr><td style="padding:10px 12px;background:#FAF8F4;border-radius:${c.image ? '0 0 8px 8px' : '8px'};">
+        <a href="${esc(c.href)}" style="text-decoration:none;color:${TEXT};">
+          ${c.title ? `<span style="display:block;font-size:${m.fs}px;line-height:1.4;font-weight:bold;color:${TEXT};">${txt(c.title)}</span>` : ''}
+          <span style="display:block;font-size:${m.fs - 1}px;line-height:1.5;color:${m.accent};">${txt(c.host, 'ltr')} ${arrow(m)}</span>
+        </a>
+      </td></tr>
+    </table>`;
+  }
+
+  function extras(m) {
+    return siteCard(m) + (m.disclaimer
+      ? `<div style="font-size:${m.fs - 2}px;line-height:1.5;color:${MUTED};margin-top:14px;max-width:460px;">${m.disclaimer.split('\n').map(l => txt(l)).join('<br />')}</div>`
+      : '');
   }
 
   const signoff = m => m.signoff
@@ -502,6 +535,7 @@
       ? signatureHtml()
       : '<p class="sig-empty">Start typing on the left — your signature will appear here.</p>';
     syncPhotoUI();
+    syncCardUI();
     syncDir();
     watchPhoto();
     updateHints();
@@ -826,6 +860,77 @@
     handleFile(e.dataTransfer.files[0]);
   });
 
+  // ---------- Website preview card ----------
+  // /api/preview reads the site's og:title / og:image; the image is cropped
+  // here to the card size and embedded, like the photo.
+  const siteToggle = $('#siteCard');
+  const siteStatus = $('#siteCardStatus');
+  const siteTitleField = $('#siteCardTitleField');
+  let cardSeq = 0;
+  let cardTimer = 0;
+
+  function setCardStatus(msg, tone = '') {
+    siteStatus.textContent = msg;
+    siteStatus.hidden = !msg;
+    siteStatus.className = 'upload-status' + (tone ? ` is-${tone}` : '');
+  }
+
+  function syncCardUI() {
+    siteToggle.checked = !!state.siteCard;
+    siteTitleField.hidden = !(state.siteCard && state.siteCardFor && state.siteCardFor === toUrl(state.website));
+  }
+
+  // 2× the displayed card size, cropped to fill.
+  async function cropCardImage(dataUrl) {
+    const { src, sw, sh } = await loadImage(dataUrl);
+    const W = CARD_W * 2, H = CARD_H * 2;
+    const canvas = document.createElement('canvas');
+    canvas.width = W;
+    canvas.height = H;
+    const ctx = canvas.getContext('2d');
+    ctx.imageSmoothingQuality = 'high';
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(0, 0, W, H);
+    const s = Math.max(W / sw, H / sh);
+    ctx.drawImage(src, (W - sw * s) / 2, (H - sh * s) / 2, sw * s, sh * s);
+    return canvas.toDataURL('image/jpeg', 0.85);
+  }
+
+  async function fetchCard() {
+    if (!state.siteCard) return;
+    const site = toUrl(state.website);
+    if (!site) return setCardStatus('Add your website address above to create the card.', 'warn');
+    if (site === state.siteCardFor) return;
+
+    const seq = ++cardSeq;
+    setCardStatus('Reading your website…');
+    try {
+      if (!/^https?:$/.test(location.protocol)) throw new Error('Preview cards only work on the live site.');
+      const res = await fetch('/api/preview?url=' + encodeURIComponent(site));
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `Couldn’t read that website (${res.status}).`);
+      const image = data.image ? await cropCardImage(data.image).catch(() => '') : '';
+      if (seq !== cardSeq) return;
+      state.siteCardFor = site;
+      state.siteCardImage = image;
+      state.siteCardTitle = data.title || data.siteName || '';
+      setCardStatus(image
+        ? 'Preview card added. The image is embedded, like your photo.'
+        : 'This site has no preview image, so the card shows its title only.', image ? 'ok' : 'warn');
+      syncFields();
+      render();
+    } catch (err) {
+      if (seq === cardSeq) setCardStatus(err.message, 'warn');
+    }
+  }
+
+  siteToggle.addEventListener('change', () => {
+    state.siteCard = siteToggle.checked;
+    if (state.siteCard) fetchCard();
+    else { cardSeq++; setCardStatus(''); }
+    render();
+  });
+
   function buildTemplatePicker() {
     const host = $('#templates');
     host.innerHTML = Object.entries(TEMPLATES).map(([id, t]) => `
@@ -946,6 +1051,11 @@
         render();
         // Fit and shape are baked into uploaded images, so re-process the file.
         if (key === 'photoFit' || key === 'photoShape') applyPhoto();
+        // Refresh the preview card once typing in the website field pauses.
+        if (key === 'website' && state.siteCard) {
+          clearTimeout(cardTimer);
+          cardTimer = setTimeout(fetchCard, 800);
+        }
       });
     });
   }
@@ -1044,10 +1154,13 @@ ${signatureHtml(true)}
     flash(remember ? 'Saved on this device only.' : 'Removed from this device.');
   });
 
+  if (state.siteCard) fetchCard();
   if (isImageData(state.photoOrig)) setUploadStatus(state.photoHost && toUrl(state.photo) ? HOSTED_MSG : EMBEDDED_MSG, 'ok');
 
   $('#reset').addEventListener('click', () => {
     clearPhoto();
+    cardSeq++;
+    setCardStatus('');
     touched.clear();
     state = { ...EMPTY };
     syncFields();

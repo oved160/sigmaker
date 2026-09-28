@@ -68,6 +68,18 @@
             <input type="text" data-key="address" placeholder="Stockholm, Sweden" />
           </label>
         </div>
+        <div class="site-card-opts">
+          <label class="toggle">
+            <input type="checkbox" id="siteCard" />
+            <span class="toggle-ui" aria-hidden="true"></span>
+            <span>Show a preview card for my website <em>uses the image your site shows when shared</em></span>
+          </label>
+          <p class="upload-status" id="siteCardStatus" role="status" aria-live="polite" hidden></p>
+          <label class="field full" id="siteCardTitleField" hidden>
+            <span>Card title</span>
+            <input type="text" data-key="siteCardTitle" placeholder="Your site's title" />
+          </label>
+        </div>
       </fieldset>
 
       <fieldset class="group">
