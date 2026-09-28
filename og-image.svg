@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <rect width="1200" height="630" fill="#FDFBF7"/>
+
+  <!-- brand -->
+  <rect x="80" y="76" width="56" height="56" rx="13" fill="#2C2C2C"/>
+  <text x="108" y="118" text-anchor="middle" font-family="Georgia" font-size="34" fill="#FDFBF7">S</text>
+  <text x="152" y="116" font-family="Georgia" font-size="34" fill="#2C2C2C">SigMaker</text>
+
+  <!-- headline -->
+  <text font-family="Georgia" font-size="62" fill="#2C2C2C" letter-spacing="-1">
+    <tspan x="80" y="262">Email signatures</tspan>
+    <tspan x="80" y="336">you're proud to send.</tspan>
+  </text>
+  <text x="80" y="404" font-family="Helvetica" font-size="28" fill="#7A746B">Free · No account · No tracking</text>
+
+  <!-- pills -->
+  <g font-family="Helvetica" font-size="22" fill="#2C2C2C">
+    <rect x="80" y="470" width="150" height="46" rx="23" fill="#FFFFFF" stroke="#E5E0D8" stroke-width="2"/>
+    <text x="155" y="500" text-anchor="middle">5 templates</text>
+    <rect x="246" y="470" width="162" height="46" rx="23" fill="#FFFFFF" stroke="#E5E0D8" stroke-width="2"/>
+    <text x="327" y="500" text-anchor="middle">Hebrew · RTL</text>
+    <rect x="424" y="470" width="196" height="46" rx="23" fill="#FFFFFF" stroke="#E5E0D8" stroke-width="2"/>
+    <text x="522" y="500" text-anchor="middle">Gmail &amp; Outlook</text>
+  </g>
+
+  <!-- mock email card -->
+  <g transform="translate(700 150)">
+    <rect x="6" y="10" width="420" height="330" rx="22" fill="#2C2C2C" opacity="0.06"/>
+    <rect width="420" height="330" rx="20" fill="#FFFFFF" stroke="#E5E0D8" stroke-width="2"/>
+    <path d="M0 20a20 20 0 0 1 20-20h380a20 20 0 0 1 20 20v26H0z" fill="#F6F2EB"/>
+    <line x1="0" y1="46" x2="420" y2="46" stroke="#E5E0D8" stroke-width="2"/>
+    <circle cx="26" cy="23" r="6" fill="#D3CCC0"/><circle cx="46" cy="23" r="6" fill="#D3CCC0"/><circle cx="66" cy="23" r="6" fill="#D3CCC0"/>
+
+    <rect x="32" y="74" width="220" height="10" rx="5" fill="#E5E0D8"/>
+    <rect x="32" y="96" width="160" height="10" rx="5" fill="#E5E0D8"/>
+
+    <!-- signature -->
+    <circle cx="80" cy="186" r="42" fill="#4A6B5D"/>
+    <circle cx="80" cy="172" r="15" fill="#FDFBF7" opacity="0.9"/>
+    <path d="M52 214a28 22 0 0 1 56 0z" fill="#FDFBF7" opacity="0.9"/>
+    <rect x="140" y="140" width="3" height="150" fill="#4A6B5D"/>
+    <text x="162" y="164" font-family="Helvetica" font-weight="bold" font-size="24" fill="#2C2C2C">Astrid Lindqvist</text>
+    <text x="162" y="192" font-family="Helvetica" font-size="17" fill="#4A6B5D">Product Designer</text>
+    <g fill="none" stroke="#4A6B5D" stroke-width="2" stroke-linecap="round">
+      <circle cx="170" cy="226" r="6"/><circle cx="170" cy="252" r="6"/><circle cx="170" cy="278" r="6"/>
+    </g>
+    <rect x="186" y="221" width="150" height="9" rx="4.5" fill="#E5E0D8"/>
+    <rect x="186" y="247" width="176" height="9" rx="4.5" fill="#E5E0D8"/>
+    <rect x="186" y="273" width="128" height="9" rx="4.5" fill="#E5E0D8"/>
+  </g>
+</svg>
