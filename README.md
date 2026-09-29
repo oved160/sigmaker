@@ -18,9 +18,9 @@ Fonts (Inter, Fraunces — SIL OFL) are self-hosted in `fonts/`, so the page mak
 
 The **Feedback** button (header and footer) posts to `api/feedback.js`, which saves each message as a JSON file under `feedback/` in the Blob store (random filename, no IP or other identifiers). Read them at **`/feedback-inbox`** — a private page (not linked, `noindex`) protected by the `FEEDBACK_KEY` environment variable, with delete — or in Vercel → **Storage → Blob → feedback/**. Limits: 10/hour per network, 300/day overall. The form only reports success when the server returns the saved file’s URL.
 
-## Animated text
+## Animated accents
 
-Email apps strip CSS/JS animation but play animated GIFs, so the optional **Shine** and **Typing** effects (name, job title, website link) are drawn frame by frame on a canvas and encoded to GIF in the browser by `anim.js`, using [gifenc](https://github.com/mattdesl/gifenc) (MIT, vendored in `vendor/`). Frame 0 is always the complete text, because classic Outlook for Windows shows only the first frame. Each GIF is embedded like the photo (~15–40 KB) and carries the text as `alt`. By default they sit on a soft rounded tint of the accent colour with transparent corners ("Dark-mode safe"): mail apps' dark modes recolour text but not images, so a plain white box would stand out. The preview has a Dark toggle approximating Gmail's phone dark mode.
+Email apps strip CSS/JS animation but play animated GIFs. SigMaker never turns text into an image (it can't match the real text or follow dark mode); instead two optional accents are drawn on a canvas and encoded to GIF in the browser by `anim.js` with [gifenc](https://github.com/mattdesl/gifenc) (MIT, vendored in `vendor/`): an **accent line under the name** with a light gliding along it, and a **nudging arrow** after the website link. Both have transparent backgrounds (1-bit alpha), are a few KB, and are embedded like the photo. Frame 0 is the resting state, because classic Outlook for Windows shows only the first frame. The preview's **Dark** toggle approximates Gmail's phone dark mode.
 
 ## Contact icons
 

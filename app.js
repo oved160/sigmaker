@@ -45,11 +45,8 @@
     disclaimer: '',
     accent: '#4A6B5D',
     iconStyle: 'line',
-    animEffect: 'none',  // 'none' | 'shine' | 'type' — animated GIF text
-    animName: true,
-    animTitle: false,
-    animWebsite: false,
-    animChip: true,      // soft tinted background that survives mail-app dark modes
+    animUnderline: false, // animated accent line under the name (GIF)
+    animArrow: false,     // nudging arrow after the website link (GIF)
     dir: 'auto',
     template: 'classic',
   };
@@ -72,7 +69,7 @@
   const EMPTY = Object.fromEntries(Object.keys(SAMPLE).map(k => [k, '']));
   Object.assign(EMPTY, {
     photoShape: 'circle', photoFit: 'cover', photoHost: false, siteCard: false, photoSize: '72', font: SAMPLE.font, fontSize: '13',
-    accent: '#2C2C2C', iconStyle: 'line', animEffect: 'none', animName: true, animTitle: false, animWebsite: false, animChip: true, dir: 'auto', template: 'classic',
+    accent: '#2C2C2C', iconStyle: 'line', animUnderline: false, animArrow: false, dir: 'auto', template: 'classic',
   });
 
   const FONTS = [...document.querySelectorAll('select[data-key="font"] option')].map(o => o.value);
@@ -270,9 +267,7 @@
       iconStyle, iconSet,
       icon: name => iconSrc(iconSet, name, accent, forExport),
       dir, rtl: dir === 'rtl',
-      anim: ['shine', 'type'].includes(s.animEffect)
-        ? { effect: s.animEffect, name: !!s.animName, title: !!s.animTitle, website: !!s.animWebsite, chip: s.animChip !== false }
-        : null,
+      anim: { underline: !!s.animUnderline, arrow: !!s.animArrow },
       name: s.name.trim(),
       title: s.title.trim(),
       company: s.company.trim(),
@@ -318,41 +313,32 @@
     `<td width="${w}" style="width:${w}px;min-width:${w}px;font-size:0;line-height:0;">&nbsp;</td>`;
   const arrow = m => (m.rtl ? '&larr;' : '&rarr;');
 
-  // Animated version of a piece of text (a GIF), or '' when that part isn't
-  // animated or its GIF is still being made — callers then render plain text.
-  function animImg(m, part, text, { size, weight = 'normal', color = TEXT, bg = '#FFFFFF', uppercase = false, letterSpacing = 0, block = false }) {
-    if (!m.anim || !m.anim[part] || !text) return '';
-    const gif = requestAnim({
-      text, effect: m.anim.effect, sizePx: size, weight, family: m.font, color, bg,
-      accent: m.accent, dir: firstStrongDir(text) || m.dir, uppercase, letterSpacing,
-      chip: m.anim.chip ? (bg === '#FFFFFF' ? 'light' : 'banner') : '',
-    });
+  // Animated accent (a GIF from anim.js), or '' while it's still being made.
+  function accentImg(kind, opts, alt = '') {
+    const gif = requestAnim({ kind, ...opts });
     if (!gif) return '';
-    return `<img src="${gif.dataUrl}" width="${gif.width}" height="${gif.height}" alt="${esc(text)}" style="display:${block ? 'block' : 'inline-block'};width:${gif.width}px;height:${gif.height}px;border:0;vertical-align:middle;" />`;
+    return `<img src="${gif.dataUrl}" width="${gif.width}" height="${gif.height}" alt="${esc(alt)}" style="display:${kind === 'underline' ? 'block' : 'inline-block'};width:${gif.width}px;height:${gif.height}px;border:0;vertical-align:middle;" />`;
   }
 
-  function nameLine(m, size, { color = TEXT, bg } = {}) {
+  function nameLine(m, size, { color = TEXT } = {}) {
     if (!m.name) return '';
-    const a = animImg(m, 'name', m.name, { size, weight: 'bold', color, bg, block: true });
-    if (a) return `<div style="margin:0;line-height:0;">${a}</div>`;
-    return `<div style="font-size:${size}px;line-height:1.25;font-weight:bold;color:${color};margin:0;">${txt(m.name)}</div>`;
+    // Optional animated accent line under the name (white on the Banner block).
+    const line = m.anim.underline
+      ? accentImg('underline', { color: color === TEXT ? m.accent : '#FFFFFF', rtl: m.rtl })
+      : '';
+    return `<div style="font-size:${size}px;line-height:1.25;font-weight:bold;color:${color};margin:0;">${txt(m.name)}</div>`
+      + (line ? `<div style="margin:5px 0 3px;line-height:0;font-size:0;">${line}</div>` : '');
   }
 
   // "Title, Company" — each part isolated so a Hebrew title and English company keep their order.
   function roleLine(m, { joiner = ', ' } = {}) {
     if (!m.title && !m.company) return '';
-    const t = m.title
-      ? animImg(m, 'title', m.title, { size: m.fs, color: m.accent }) || `<span style="color:${m.accent};">${txt(m.title)}</span>`
-      : '';
+    const t = m.title ? `<span style="color:${m.accent};">${txt(m.title)}</span>` : '';
     const c = m.company ? `<span style="color:${MUTED};">${txt(m.company)}</span>` : '';
     return `<div style="font-size:${m.fs}px;line-height:1.5;margin:2px 0 0;">${[t, c].filter(Boolean).join(`<span style="color:${MUTED};">${joiner}</span>`)}</div>`;
   }
 
-  // "Title · Company" as one run; `titleStyle` describes the line for an animated title.
-  const roleText = (m, sep, titleStyle) => [
-    m.title ? animImg(m, 'title', m.title, titleStyle) || txt(m.title) : '',
-    m.company ? txt(m.company) : '',
-  ].filter(Boolean).join(sep);
+  const roleText = (m, sep) => [m.title, m.company].filter(Boolean).map(v => txt(v)).join(sep);
 
   const TABLE = 'cellpadding="0" cellspacing="0" border="0" role="presentation" style="border-collapse:collapse;"';
   const tableWith = style => TABLE.replace('style="', `style="${style}`);
@@ -365,9 +351,11 @@
   }
 
   function contactValue(m, c, color = TEXT) {
-    if (c.icon === 'website') {
-      const a = animImg(m, 'website', c.text, { size: m.fs, color });
-      if (a) return `<a href="${esc(c.href)}" dir="ltr" style="text-decoration:none;">${a}</a>`;
+    if (c.icon === 'website' && m.anim.arrow) {
+      const arrow = accentImg('arrow', { color: m.accent, rtl: m.rtl, size: Math.max(11, m.fs - 1) });
+      if (arrow) {
+        return `${link(m, c.href, c.text, color, c.dir)}&nbsp;<a href="${esc(c.href)}" style="text-decoration:none;">${arrow}</a>`;
+      }
     }
     return c.href ? link(m, c.href, c.text, color, c.dir) : `<span style="color:${color};">${txt(c.text, c.dir)}</span>`;
   }
@@ -492,7 +480,7 @@
       thumb: [['i', 10, 10, 56, 8], ['a', 10, 22, 34, 4], ['a', 10, 31, 90, 1], ['i', 10, 37, 24, 3], ['i', 38, 37, 24, 3], ['i', 66, 37, 24, 3]],
       build(m) {
         const photo = m.photo ? `<td valign="middle">${photoImg(m)}</td>${spacer(18)}` : '';
-        const role = roleText(m, ' · ', { size: m.fs - 1, weight: 'bold', color: m.accent, uppercase: true, letterSpacing: m.rtl ? 0 : 1.5 });
+        const role = roleText(m, ' · ');
         return signoff(m) + wrap(m, `<tr>${photo}<td valign="middle">
           ${nameLine(m, m.fs + 9)}
           ${role ? `<div style="font-size:${m.fs - 1}px;line-height:1.5;margin-top:4px;letter-spacing:${m.rtl ? 0 : 1.5}px;text-transform:uppercase;color:${m.accent};font-weight:bold;">${role}</div>` : ''}
@@ -512,7 +500,7 @@
       name: 'Minimal',
       thumb: [['i', 10, 14, 44, 6], ['i', 10, 25, 64, 3], ['a', 10, 34, 80, 3]],
       build(m) {
-        const role = roleText(m, ', ', { size: m.fs, color: MUTED });
+        const role = roleText(m, ', ');
         const contacts = m.contacts.map(c => {
           const val = contactValue(m, c);
           return m.iconSet ? `<span style="white-space:nowrap;">${iconImg(m, c.icon, m.fs)}&nbsp;${val}</span>` : val;
@@ -563,13 +551,13 @@
       thumb: [['a', 8, 8, 96, 22, '4px'], ['i', 12, 36, 30, 3], ['i', 46, 36, 30, 3], ['i', 12, 42, 22, 3]],
       build(m) {
         const photo = m.photo ? `<td valign="middle">${photoImg(m, Math.min(m.photoSize, 64))}</td>${spacer(14)}` : '';
-        const role = roleText(m, ' · ', { size: m.fs, color: '#FFFFFF', bg: m.accent });
+        const role = roleText(m, ' · ');
         return signoff(m) + wrap(m, `
           <tr><td style="background:${m.accent};border-radius:8px;padding:14px 18px;">
             <table ${TABLE}><tr>
               ${photo}
               <td valign="middle">
-                ${nameLine(m, m.fs + 5, { color: '#FFFFFF', bg: m.accent })}
+                ${nameLine(m, m.fs + 5, { color: '#FFFFFF' })}
                 ${role ? `<div style="font-size:${m.fs}px;line-height:1.5;color:#FFFFFF;opacity:.85;margin-top:2px;">${role}</div>` : ''}
               </td>
             </tr></table>
@@ -637,8 +625,8 @@
   }
 
   // ---------- Animated text queue ----------
-  // GIFs are made in the background (anim.js). Until one is ready the plain text
-  // shows; requests wait for a pause in typing so each keystroke isn't encoded.
+  // Accent GIFs are made in the background (anim.js) and cached; until one is
+  // ready the signature simply renders without it.
   const animCache = new Map(); // key -> { status: 'pending' | 'ready' | 'error', gif }
   const animQueue = new Map();
   let animTimer = 0;
@@ -659,7 +647,7 @@
     for (const [key, opts] of jobs) {
       animCache.set(key, { status: 'pending' });
       try {
-        animCache.set(key, { status: 'ready', gif: await window.SigAnim.textGif(opts) });
+        animCache.set(key, { status: 'ready', gif: await window.SigAnim.make(opts) });
       } catch (err) {
         console.warn('Animation failed:', err);
         animCache.set(key, { status: 'error' });
@@ -670,36 +658,16 @@
     render();
   }
 
-  // ---------- Animation picker ----------
+  // ---------- Animation options ----------
   function syncAnim() {
-    const effect = ['shine', 'type'].includes(state.animEffect) ? state.animEffect : 'none';
-    document.querySelectorAll('#animPicker [data-anim]').forEach(b =>
-      b.setAttribute('aria-checked', String(b.dataset.anim === effect)));
-    $('#animParts').hidden = effect === 'none';
-    document.querySelectorAll('[data-anim-part]').forEach(cb => { cb.checked = !!state[cb.dataset.animPart]; });
-    $('#animChip').checked = state.animChip !== false;
-    const anyPart = state.animName || state.animTitle || state.animWebsite;
-    $('#animNote').textContent = effect === 'none'
-      ? ''
-      : !anyPart
-        ? 'Choose what to animate.'
-        : `${effect === 'shine' ? 'A soft shine sweeps across every few seconds.' : 'Types itself out twice, then stays.'} Plays in Gmail, Apple Mail and new Outlook; classic Outlook for Windows shows it still.`;
+    $('#animUnderline').checked = !!state.animUnderline;
+    $('#animArrow').checked = !!state.animArrow;
+    $('#animNote').textContent = state.animUnderline || state.animArrow
+      ? 'Plays in Gmail, Apple Mail and new Outlook; classic Outlook for Windows shows it still.'
+      : '';
   }
-
-  $('#animPicker').addEventListener('click', e => {
-    const btn = e.target.closest('[data-anim]');
-    if (!btn) return;
-    state.animEffect = btn.dataset.anim;
-    render();
-  });
-  document.querySelectorAll('[data-anim-part]').forEach(cb => cb.addEventListener('change', () => {
-    state[cb.dataset.animPart] = cb.checked;
-    render();
-  }));
-  $('#animChip').addEventListener('change', e => {
-    state.animChip = e.target.checked;
-    render();
-  });
+  $('#animUnderline').addEventListener('change', e => { state.animUnderline = e.target.checked; render(); });
+  $('#animArrow').addEventListener('change', e => { state.animArrow = e.target.checked; render(); });
 
   // ---------- Text direction picker ----------
   function syncDir() {
