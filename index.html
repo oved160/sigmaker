@@ -308,8 +308,9 @@
         <span>Your email <em>optional — only if you'd like a reply</em></span>
         <input type="email" id="feedbackEmail" dir="ltr" autocomplete="email" maxlength="200" />
       </label>
-      <!-- Hidden from people; bots fill it in. -->
-      <input type="text" id="feedbackCompany" name="company" tabindex="-1" autocomplete="off" class="hp" aria-hidden="true" />
+      <!-- Hidden from people; bots fill it in. Deliberately meaningless name/id:
+           browser autofill fills fields that look like "company", "name", etc. -->
+      <input type="text" id="fbTrap" name="fb_x7" tabindex="-1" autocomplete="off" class="hp" aria-hidden="true" />
       <p class="upload-status" id="feedbackStatus" role="status" aria-live="polite"></p>
       <div class="feedback-actions">
         <button type="button" class="btn" id="feedbackCancel">Cancel</button>

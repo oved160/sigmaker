@@ -1248,7 +1248,7 @@ ${signatureHtml(true)}
       const res = await fetch('/api/feedback', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ message, email, kind: fbKind, company: $('#feedbackCompany').value }),
+        body: JSON.stringify({ message, email, kind: fbKind, trap: $('#fbTrap').value }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'Couldn’t send your feedback. Please try again.');

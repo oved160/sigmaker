@@ -35,7 +35,10 @@ export async function POST(request) {
   try { data = JSON.parse(raw); } catch { return json({ error: 'Invalid request.' }, 400); }
 
   // Honeypot: a field real visitors never see. Pretend success for bots.
-  if (data.company) return json({ ok: true });
+  if (data.trap) {
+    console.warn('Feedback dropped by honeypot');
+    return json({ ok: true });
+  }
 
   const message = String(data.message || '').trim();
   const email = String(data.email || '').trim();
