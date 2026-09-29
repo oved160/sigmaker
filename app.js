@@ -1223,6 +1223,9 @@ ${signatureHtml(true)}
     setFbStatus('');
     fbSend.disabled = false;
     fbSend.textContent = 'Send';
+    // Every new message starts as an Idea.
+    fbKind = 'idea';
+    fbForm.querySelectorAll('[data-kind]').forEach(x => x.setAttribute('aria-checked', String(x.dataset.kind === 'idea')));
     fbDialog.showModal();
     $('#feedbackMessage').focus();
   }));
