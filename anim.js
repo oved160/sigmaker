@@ -47,7 +47,7 @@
   }
 
   // frames: [{ rgba, delay }] — encoded with a shared palette and frame diffs.
-  async function encode(frames) {
+  async function encode(frames, W = N, H = N) {
     const { GIFEncoder, quantize, applyPalette } = await loadEncoder();
 
     // Palette from the opaque pixels of a few representative frames.
@@ -75,7 +75,7 @@
         out[p] = transparent ? T : idx[p];
       }
       prev = idx;
-      gif.writeFrame(out, N, N, {
+      gif.writeFrame(out, W, H, {
         ...(i === 0 ? { palette, repeat: 0 } : {}),
         delay: f.delay, transparent: true, transparentIndex: T, dispose: 1,
       });
@@ -96,8 +96,8 @@
     const img = await loadImg(opts.src);
     const k = N / opts.size;                     // canvas px per display px
     const shimmer = opts.effect === 'shimmer';
-    const ring = shimmer ? 0 : Math.round(3 * k); // ring thickness
-    const gap = shimmer ? 0 : Math.round(2 * k);  // transparent gap inside it
+    const ring = shimmer ? 0 : Math.round(2 * k);   // ring thickness (2px displayed)
+    const gap = shimmer ? 0 : Math.round(1.5 * k);  // transparent gap inside it
     const inset = ring + gap;
     const rr = opts.radiusRatio || 1 / 6;
 
@@ -200,9 +200,78 @@
     return { dataUrl, bytes, width: opts.size, height: opts.size };
   }
 
+  /**
+   * Call-to-action button that gently brightens twice (arrow nudging), then rests.
+   * opts: { text, family, sizePx, color (accent #RRGGBB), rtl }
+   * Solid fill with transparent rounded corners, so it looks the same in dark mode.
+   */
+  async function button(opts) {
+    const S = 2;
+    const font = `bold ${opts.sizePx * S}px ${opts.family}`;
+    const m = document.createElement('canvas').getContext('2d');
+    m.font = font;
+    const arrowW = opts.sizePx * 0.85;
+    const padX = 16, gapX = 6;
+    const width = Math.ceil(m.measureText(opts.text).width / S + gapX + arrowW + padX * 2);
+    const height = Math.round(opts.sizePx * 2.45);
+    const W = width * S, H = height * S;
+
+    const c = document.createElement('canvas');
+    c.width = W; c.height = H;
+    const ctx = c.getContext('2d', { willReadFrequently: true });
+    const frames = [];
+
+    const draw = (t, nudge, delay) => {
+      ctx.clearRect(0, 0, W, H);
+      ctx.fillStyle = t ? mix(opts.color, '#FFFFFF', 0.22 * t) : opts.color;
+      ctx.beginPath();
+      ctx.roundRect(0, 0, W, H, 6 * S);
+      ctx.fill();
+
+      // Label and arrow, laid out for the text direction.
+      ctx.fillStyle = '#FFFFFF';
+      ctx.strokeStyle = '#FFFFFF';
+      ctx.font = font;
+      ctx.textBaseline = 'middle';
+      ctx.direction = opts.rtl ? 'rtl' : 'ltr';
+      ctx.textAlign = 'start';
+      const y = H / 2 + S;
+      const textW = ctx.measureText(opts.text).width;
+      const a = arrowW * S, ay = H / 2;
+      ctx.lineWidth = 1.7 * S;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      if (opts.rtl) {
+        ctx.fillText(opts.text, W - padX * S, y);
+        const x1 = W - padX * S - textW - gapX * S - a - nudge * S; // arrow tip on the left
+        ctx.moveTo(x1 + a, ay); ctx.lineTo(x1, ay);
+        ctx.moveTo(x1 + a * 0.42, ay - a * 0.36); ctx.lineTo(x1, ay); ctx.lineTo(x1 + a * 0.42, ay + a * 0.36);
+      } else {
+        ctx.fillText(opts.text, padX * S, y);
+        const x0 = padX * S + textW + gapX * S + nudge * S;
+        ctx.moveTo(x0, ay); ctx.lineTo(x0 + a, ay);
+        ctx.moveTo(x0 + a * 0.58, ay - a * 0.36); ctx.lineTo(x0 + a, ay); ctx.lineTo(x0 + a * 0.58, ay + a * 0.36);
+      }
+      ctx.stroke();
+      frames.push({ rgba: ctx.getImageData(0, 0, W, H).data, delay });
+    };
+
+    draw(0, 0, 2600);
+    for (let rep = 0; rep < 2; rep++) {
+      for (let i = 1; i <= 8; i++) {
+        const t = Math.sin((i / 8) * Math.PI);
+        draw(t, t * 3, 55);
+      }
+    }
+    const { dataUrl, bytes } = await encode(frames, W, H);
+    return { dataUrl, bytes, width, height };
+  }
+
   root.SigAnim = {
     make(opts) {
       if (opts.kind === 'photo') return photo(opts);
+      if (opts.kind === 'button') return button(opts);
       return Promise.reject(new Error('Unknown animation'));
     },
   };

@@ -46,6 +46,7 @@
     accent: '#4A6B5D',
     iconStyle: 'line',
     photoAnim: 'none',    // 'none' | 'glow' | 'orbit' | 'story' | 'shimmer' — animated photo (GIF)
+    ctaPulse: false,      // call-to-action button gently pulses (GIF)
     dir: 'auto',
     template: 'classic',
   };
@@ -68,7 +69,7 @@
   const EMPTY = Object.fromEntries(Object.keys(SAMPLE).map(k => [k, '']));
   Object.assign(EMPTY, {
     photoShape: 'circle', photoFit: 'cover', photoHost: false, siteCard: false, photoSize: '72', font: SAMPLE.font, fontSize: '13',
-    accent: '#2C2C2C', iconStyle: 'line', photoAnim: 'none', dir: 'auto', template: 'classic',
+    accent: '#2C2C2C', iconStyle: 'line', photoAnim: 'none', ctaPulse: false, dir: 'auto', template: 'classic',
   });
 
   const FONTS = [...document.querySelectorAll('select[data-key="font"] option')].map(o => o.value);
@@ -269,6 +270,7 @@
       icon: name => iconSrc(iconSet, name, accent, forExport),
       dir, rtl: dir === 'rtl',
       photoAnim: PHOTO_ANIMS.includes(s.photoAnim) ? s.photoAnim : 'none',
+      ctaPulse: !!s.ctaPulse,
       photoShape: ['circle', 'rounded', 'square'].includes(s.photoShape) ? s.photoShape : 'circle',
       name: s.name.trim(),
       title: s.title.trim(),
@@ -411,6 +413,14 @@
 
   function ctaButton(m) {
     if (!m.cta) return '';
+    if (m.ctaPulse) {
+      const gif = requestAnim({
+        kind: 'button', text: m.cta.text, family: m.font, sizePx: m.fs, color: m.accent, rtl: m.rtl,
+      });
+      if (gif) {
+        return `<table ${tableWith('margin-top:12px;')}><tr><td style="line-height:0;"><a href="${esc(m.cta.href)}" style="text-decoration:none;"><img src="${gif.dataUrl}" width="${gif.width}" height="${gif.height}" alt="${esc(m.cta.text)}" style="display:block;width:${gif.width}px;height:${gif.height}px;border:0;" /></a></td></tr></table>`;
+      }
+    }
     return `<table ${tableWith('margin-top:12px;')}><tr><td style="background:${m.accent};border-radius:6px;"><a href="${esc(m.cta.href)}" style="display:inline-block;padding:8px 16px;color:#FFFFFF;font-size:${m.fs}px;font-weight:bold;text-decoration:none;">${txt(m.cta.text)} ${arrow(m)}</a></td></tr></table>`;
   }
 
@@ -663,6 +673,7 @@
     shimmer: 'A gentle light sweeps across your photo every few seconds.',
   };
   function syncAnim() {
+    $('#ctaPulse').checked = !!state.ctaPulse;
     const effect = PHOTO_ANIMS.includes(state.photoAnim) ? state.photoAnim : 'none';
     document.querySelectorAll('#animPicker [data-anim]').forEach(b =>
       b.setAttribute('aria-checked', String(b.dataset.anim === effect)));
@@ -671,6 +682,7 @@
       : !hasPhoto ? 'Add a photo above (upload or link) to see the animation. It isn’t available when hosting the photo online.'
         : `${ANIM_NOTES[effect]} Plays in Gmail, Apple Mail and new Outlook; classic Outlook for Windows shows it still.`;
   }
+  $('#ctaPulse').addEventListener('change', e => { state.ctaPulse = e.target.checked; render(); });
   $('#animPicker').addEventListener('click', e => {
     const btn = e.target.closest('[data-anim]');
     if (!btn) return;

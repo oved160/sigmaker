@@ -641,3 +641,4 @@ input[aria-invalid="true"], textarea[aria-invalid="true"] { border-color: #D9B98
 .mail.is-dark .sig-out { filter: invert(1) hue-rotate(180deg); }
 .mail.is-dark .sig-out img { filter: invert(1) hue-rotate(180deg); }
 @media (max-width: 520px) { .anim-seg { flex-wrap: wrap; } .anim-seg .seg-btn { flex: 1 1 30%; } }
+.pulse-check { margin-top: 10px; font-size: 13.5px; }

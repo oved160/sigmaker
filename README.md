@@ -25,7 +25,8 @@ Email apps strip CSS/JS animation but play animated GIFs, so the optional photo 
 - **Dark mode:** GIFs only have on/off transparency, so a soft glow can't fade into an unknown background. Every style keeps a solid outline (a ring, or the photo itself) whose colours animate; outside it stays transparent. The preview's **Dark** toggle approximates Gmail's phone dark mode.
 - **Size:** frame 0 is the full photo; later frames contain only changed pixels (transparent = keep previous), so results are ~50–125 KB, within the usual ≤150 KB guidance.
 - **Outlook:** frame 0 is the resting state, since classic Outlook for Windows shows only the first frame.
-- Text is never turned into an image — it can't match real text or follow dark mode.
+- **Pulsing button:** the call-to-action button can gently brighten twice (arrow nudging) every few seconds — an image of the button (~19 KB) with a solid fill and transparent rounded corners, linked like the regular button.
+- Other text is never turned into an image — it can't match real text or follow dark mode.
 
 ## Contact icons
 
