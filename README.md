@@ -16,7 +16,7 @@ Fonts (Inter, Fraunces — SIL OFL) are self-hosted in `fonts/`, so the page mak
 
 ## Feedback
 
-The **Feedback** button (header and footer) posts to `api/feedback.js`, which saves each message as a JSON file under `feedback/` in the Blob store (random filename, no IP or other identifiers). Read them in Vercel → **Storage → Blob → feedback/**. Limits: 5/hour per visitor, 300/day overall, plus a hidden honeypot field for bots.
+The **Feedback** button (header and footer) posts to `api/feedback.js`, which saves each message as a JSON file under `feedback/` in the Blob store (random filename, no IP or other identifiers). Read them at **`/feedback-inbox`** — a private page (not linked, `noindex`) protected by the `FEEDBACK_KEY` environment variable, with delete — or in Vercel → **Storage → Blob → feedback/**. Limits: 5/hour per visitor, 300/day overall, plus a hidden honeypot field for bots.
 
 ## Contact icons
 

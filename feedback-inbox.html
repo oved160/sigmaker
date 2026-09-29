@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>Feedback inbox — SigMaker</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body class="inbox-page">
+  <header class="site-header">
+    <a class="brand" href="/" style="text-decoration:none;color:inherit;">
+      <span class="brand-mark" aria-hidden="true">S</span>
+      <span class="brand-name">SigMaker</span>
+    </a>
+    <p class="brand-tag">Feedback inbox</p>
+  </header>
+
+  <main class="inbox">
+    <form class="inbox-login" id="login" hidden>
+      <h1>Feedback inbox</h1>
+      <p>Enter the <code>FEEDBACK_KEY</code> you set in Vercel.</p>
+      <label class="field">
+        <span>Password</span>
+        <input type="password" id="key" autocomplete="current-password" required />
+      </label>
+      <button type="submit" class="btn primary">Open inbox</button>
+    </form>
+
+    <section id="list" hidden>
+      <div class="inbox-head">
+        <h1>Feedback <span class="inbox-count" id="count"></span></h1>
+        <div class="inbox-actions">
+          <button type="button" class="btn small" id="refresh">Refresh</button>
+          <button type="button" class="link-btn" id="logout">Lock</button>
+        </div>
+      </div>
+      <div id="items"></div>
+    </section>
+
+    <p class="upload-status" id="status" role="status" aria-live="polite"></p>
+  </main>
+
+  <script src="feedback-inbox.js"></script>
+</body>
+</html>
