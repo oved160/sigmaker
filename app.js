@@ -1248,10 +1248,11 @@ ${signatureHtml(true)}
       const res = await fetch('/api/feedback', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ message, email, kind: fbKind, trap: $('#fbTrap').value }),
+        body: JSON.stringify({ message, email, kind: fbKind }),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || 'Couldn’t send your feedback. Please try again.');
+      // Only a response carrying the saved file's URL counts as sent.
+      if (!res.ok || !data.url) throw new Error(data.error || 'Couldn’t send your feedback. Please try again.');
       fbForm.reset();
       setFbStatus('Thank you! Your feedback was sent.', 'ok');
       fbSend.textContent = 'Sent';

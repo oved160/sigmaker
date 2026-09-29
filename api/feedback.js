@@ -3,11 +3,11 @@ import { rateLimit } from './_ratelimit.js';
 import { blobConfigured } from './_blob.js';
 
 // Stores visitor feedback in the Blob store under feedback/, one JSON file per
-// message at a random path. Read them in Vercel → Storage → Blob → feedback/.
+// message at a random path. Read them at /feedback-inbox.
 // No IP address or other identifier is stored — only what the visitor typed.
 
 const LIMITS = [
-  { id: 'fb-ip-h', perIp: true, limit: 5, windowSec: 60 * 60 },
+  { id: 'fb-ip-h', perIp: true, limit: 10, windowSec: 60 * 60 },
   { id: 'fb-all-d', perIp: false, limit: 300, windowSec: 24 * 60 * 60 },
 ];
 const MAX_BODY = 16 * 1024;
@@ -34,12 +34,6 @@ export async function POST(request) {
   let data;
   try { data = JSON.parse(raw); } catch { return json({ error: 'Invalid request.' }, 400); }
 
-  // Honeypot: a field real visitors never see. Pretend success for bots.
-  if (data.trap) {
-    console.warn('Feedback dropped by honeypot');
-    return json({ ok: true });
-  }
-
   const message = String(data.message || '').trim();
   const email = String(data.email || '').trim();
   if (message.length < 3) return json({ error: 'Please write a little more.' }, 400);
@@ -47,7 +41,7 @@ export async function POST(request) {
   if (email && (email.length > 200 || !EMAIL_RE.test(email))) return json({ error: 'That email address doesn’t look right.' }, 400);
 
   const limited = await rateLimit(request, LIMITS);
-  if (!limited.ok) return json({ error: 'Thanks! You’ve sent a lot of feedback — please try again later.' }, 429);
+  if (!limited.ok) return json({ error: 'Not sent: too many messages from your network in the last hour. Please try again later.' }, 429);
 
   const createdAt = new Date().toISOString();
   try {
