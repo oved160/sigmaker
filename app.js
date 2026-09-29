@@ -47,6 +47,7 @@
     animName: true,
     animTitle: false,
     animWebsite: false,
+    animChip: true,      // soft tinted background that survives mail-app dark modes
     dir: 'auto',
     template: 'classic',
   };
@@ -69,7 +70,7 @@
   const EMPTY = Object.fromEntries(Object.keys(SAMPLE).map(k => [k, '']));
   Object.assign(EMPTY, {
     photoShape: 'circle', photoFit: 'cover', photoHost: false, siteCard: false, photoSize: '72', font: SAMPLE.font, fontSize: '13',
-    accent: '#2C2C2C', iconStyle: 'line', animEffect: 'none', animName: true, animTitle: false, animWebsite: false, dir: 'auto', template: 'classic',
+    accent: '#2C2C2C', iconStyle: 'line', animEffect: 'none', animName: true, animTitle: false, animWebsite: false, animChip: true, dir: 'auto', template: 'classic',
   });
 
   const FONTS = [...document.querySelectorAll('select[data-key="font"] option')].map(o => o.value);
@@ -258,7 +259,7 @@
       icon: name => iconSrc(iconSet, name, accent, forExport),
       dir, rtl: dir === 'rtl',
       anim: ['shine', 'type'].includes(s.animEffect)
-        ? { effect: s.animEffect, name: !!s.animName, title: !!s.animTitle, website: !!s.animWebsite }
+        ? { effect: s.animEffect, name: !!s.animName, title: !!s.animTitle, website: !!s.animWebsite, chip: s.animChip !== false }
         : null,
       name: s.name.trim(),
       title: s.title.trim(),
@@ -312,6 +313,7 @@
     const gif = requestAnim({
       text, effect: m.anim.effect, sizePx: size, weight, family: m.font, color, bg,
       accent: m.accent, dir: firstStrongDir(text) || m.dir, uppercase, letterSpacing,
+      chip: m.anim.chip ? (bg === '#FFFFFF' ? 'light' : 'banner') : '',
     });
     if (!gif) return '';
     return `<img src="${gif.dataUrl}" width="${gif.width}" height="${gif.height}" alt="${esc(text)}" style="display:${block ? 'block' : 'inline-block'};width:${gif.width}px;height:${gif.height}px;border:0;vertical-align:middle;" />`;
@@ -663,6 +665,7 @@
       b.setAttribute('aria-checked', String(b.dataset.anim === effect)));
     $('#animParts').hidden = effect === 'none';
     document.querySelectorAll('[data-anim-part]').forEach(cb => { cb.checked = !!state[cb.dataset.animPart]; });
+    $('#animChip').checked = state.animChip !== false;
     const anyPart = state.animName || state.animTitle || state.animWebsite;
     $('#animNote').textContent = effect === 'none'
       ? ''
@@ -681,6 +684,10 @@
     state[cb.dataset.animPart] = cb.checked;
     render();
   }));
+  $('#animChip').addEventListener('change', e => {
+    state.animChip = e.target.checked;
+    render();
+  });
 
   // ---------- Text direction picker ----------
   function syncDir() {
@@ -1390,6 +1397,14 @@ ${signatureHtml(true)}
     document.querySelectorAll('.preview-head .seg-btn').forEach(b => b.classList.toggle('is-active', b === btn));
     $('#mail').classList.toggle('is-mobile', btn.dataset.view === 'mobile');
   }));
+
+  // Preview in an approximation of mail apps' dark mode (Gmail on phones inverts
+  // text colours but leaves images alone).
+  $('#darkPreview').addEventListener('click', e => {
+    const on = !$('#mail').classList.contains('is-dark');
+    $('#mail').classList.toggle('is-dark', on);
+    e.currentTarget.setAttribute('aria-pressed', String(on));
+  });
 
   // Mobile: switch between the form and the preview.
   document.querySelectorAll('.mtab').forEach(btn => btn.addEventListener('click', () => {

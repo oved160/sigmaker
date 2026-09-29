@@ -182,6 +182,7 @@
             <label class="check"><input type="checkbox" data-anim-part="animName" /> Name</label>
             <label class="check"><input type="checkbox" data-anim-part="animTitle" /> Job title</label>
             <label class="check"><input type="checkbox" data-anim-part="animWebsite" /> Website link</label>
+            <label class="check check-wide"><input type="checkbox" id="animChip" /> Dark-mode safe <em>soft background, so it looks right in dark mode</em></label>
           </div>
           <small class="dir-note" id="animNote"></small>
         </div>
@@ -246,9 +247,15 @@
       <div class="sticky">
         <div class="preview-head">
           <h2>Live preview</h2>
+          <div class="preview-tools">
+          <button type="button" class="dark-toggle" id="darkPreview" aria-pressed="false" title="Preview in dark mode">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a6 6 0 0 0 9 9a9 9 0 1 1-9-9z"/></svg>
+            Dark
+          </button>
           <div class="seg" role="group" aria-label="Preview width">
             <button type="button" class="seg-btn is-active" data-view="desktop">Desktop</button>
             <button type="button" class="seg-btn" data-view="mobile">Mobile</button>
+          </div>
           </div>
         </div>
 

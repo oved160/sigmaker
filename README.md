@@ -20,7 +20,7 @@ The **Feedback** button (header and footer) posts to `api/feedback.js`, which sa
 
 ## Animated text
 
-Email apps strip CSS/JS animation but play animated GIFs, so the optional **Shine** and **Typing** effects (name, job title, website link) are drawn frame by frame on a canvas and encoded to GIF in the browser by `anim.js`, using [gifenc](https://github.com/mattdesl/gifenc) (MIT, vendored in `vendor/`). Frame 0 is always the complete text, because classic Outlook for Windows shows only the first frame. Each GIF is embedded like the photo (~15–40 KB) and carries the text as `alt`. They're drawn on the signature's background colour, so they look boxed in mail apps' dark modes.
+Email apps strip CSS/JS animation but play animated GIFs, so the optional **Shine** and **Typing** effects (name, job title, website link) are drawn frame by frame on a canvas and encoded to GIF in the browser by `anim.js`, using [gifenc](https://github.com/mattdesl/gifenc) (MIT, vendored in `vendor/`). Frame 0 is always the complete text, because classic Outlook for Windows shows only the first frame. Each GIF is embedded like the photo (~15–40 KB) and carries the text as `alt`. By default they sit on a soft rounded tint of the accent colour with transparent corners ("Dark-mode safe"): mail apps' dark modes recolour text but not images, so a plain white box would stand out. The preview has a Dark toggle approximating Gmail's phone dark mode.
 
 ## Contact icons
 

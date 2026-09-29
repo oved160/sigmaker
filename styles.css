@@ -32,6 +32,9 @@
 
 *, *::before, *::after { box-sizing: border-box; }
 
+/* `hidden` must win over component display rules (.grid, .inbox-login…). */
+[hidden] { display: none !important; }
+
 html { -webkit-text-size-adjust: 100%; }
 
 body {
@@ -612,3 +615,28 @@ input[aria-invalid="true"], textarea[aria-invalid="true"] { border-color: #D9B98
 .anim-parts { display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: 13.5px; }
 .check { display: inline-flex; align-items: center; gap: 7px; cursor: pointer; }
 .check input { width: 16px; height: 16px; accent-color: var(--text); margin: 0; }
+
+.check-wide { flex-basis: 100%; }
+.check em { font-style: normal; color: var(--muted); }
+
+/* Preview tools: dark-mode toggle */
+.preview-tools { display: flex; align-items: center; gap: 8px; }
+.dark-toggle {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-2);
+  font: inherit; font-size: 12.5px; color: var(--muted);
+  cursor: pointer;
+}
+.dark-toggle svg { width: 14px; height: 14px; fill: currentColor; }
+.dark-toggle[aria-pressed="true"] { background: #1F1F1F; border-color: #1F1F1F; color: #F2F2F2; }
+
+/* Approximates Gmail's phone dark mode: colours inverted, images untouched. */
+.mail.is-dark { background: #121212; border-color: #2A2A2A; }
+.mail.is-dark .mail-bar { background: #1C1C1C; border-color: #2A2A2A; }
+.mail.is-dark .mail-meta { border-color: #2A2A2A; color: #9A9A9A; }
+.mail.is-dark .mail-text { color: #E6E6E6; }
+.mail.is-dark .sig-out { filter: invert(1) hue-rotate(180deg); }
+.mail.is-dark .sig-out img { filter: invert(1) hue-rotate(180deg); }

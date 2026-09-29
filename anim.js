@@ -35,7 +35,13 @@
 
   /**
    * opts: { text, effect: 'shine'|'type', sizePx, weight, family, color, bg,
-   *         accent, dir: 'ltr'|'rtl', uppercase, letterSpacing }
+   *         accent, dir: 'ltr'|'rtl', uppercase, letterSpacing, chip }
+   *
+   * chip: '' → text on a solid `bg` rectangle.
+   *       'light' | 'banner' → text on a soft rounded tint with transparent
+   *       corners. Mail apps' dark modes recolour text but never images, so a
+   *       solid white box stands out; a tinted chip reads as intentional on
+   *       both light and dark backgrounds, and the text on it stays readable.
    * → Promise<{ dataUrl, width, height, bytes }>   (width/height in CSS px)
    */
   async function textGif(opts) {
@@ -51,8 +57,11 @@
     const measure = s => measureCtx.measureText(s).width;
 
     const cursorRoom = opts.effect === 'type' ? 4 : 0;
-    const width = Math.ceil(measure(text) / SCALE) + PAD * 2 + cursorRoom;
-    const height = Math.round(opts.sizePx * 1.35);
+    const padX = opts.chip ? 7 : PAD;
+    const width = Math.ceil(measure(text) / SCALE) + padX * 2 + cursorRoom;
+    const height = Math.round(opts.sizePx * (opts.chip ? 1.55 : 1.35));
+    const chipColor = opts.chip === 'banner' ? mix(opts.bg, '#FFFFFF', 0.18)
+      : opts.chip ? mix(opts.accent || opts.color, '#FFFFFF', 0.87) : '';
     const W = width * SCALE, H = height * SCALE;
 
     const canvas = document.createElement('canvas');
@@ -66,7 +75,7 @@
     layer.height = H;
     const lctx = layer.getContext('2d');
 
-    const startX = rtl ? W - PAD * SCALE : PAD * SCALE;
+    const startX = rtl ? W - padX * SCALE : padX * SCALE;
     function drawText(str) {
       lctx.clearRect(0, 0, W, H);
       lctx.font = font;
@@ -78,8 +87,16 @@
       lctx.fillText(str, startX, H / 2 + SCALE);
     }
     function compose() {
-      ctx.fillStyle = opts.bg;
-      ctx.fillRect(0, 0, W, H);
+      if (chipColor) {
+        ctx.clearRect(0, 0, W, H);
+        ctx.fillStyle = chipColor;
+        ctx.beginPath();
+        ctx.roundRect(0, 0, W, H, Math.min(H / 2, 7 * SCALE));
+        ctx.fill();
+      } else {
+        ctx.fillStyle = opts.bg;
+        ctx.fillRect(0, 0, W, H);
+      }
       ctx.drawImage(layer, 0, 0);
       return ctx.getImageData(0, 0, W, H).data;
     }
@@ -89,7 +106,7 @@
 
     if (opts.effect === 'shine') {
       // A soft band of light sweeps across the letters, then a long pause.
-      const glint = lightText ? mix(opts.color, opts.bg, 0.5) : mix(opts.color, '#FFFFFF', 0.7);
+      const glint = lightText ? mix(opts.color, opts.bg, 0.5) : mix(opts.color, '#FFFFFF', chipColor ? 0.55 : 0.7);
       drawText(text);
       frames.push({ rgba: compose(), delay: 2800 });
       const steps = 16;
@@ -137,14 +154,18 @@
     const sample = new Uint8ClampedArray(frames[0].rgba.length + mid.length);
     sample.set(frames[0].rgba);
     sample.set(mid, frames[0].rgba.length);
-    const palette = quantize(sample, 128);
+    // Chips need 1-bit transparency for the corners; plain text is opaque.
+    const format = chipColor ? 'rgba4444' : 'rgb565';
+    const palette = quantize(sample, 128, chipColor ? { format, oneBitAlpha: true } : {});
+    const transparentIndex = chipColor ? palette.findIndex(c => c[3] === 0) : -1;
+    const alpha = transparentIndex >= 0 ? { transparent: true, transparentIndex } : {};
 
     const gif = GIFEncoder();
     frames.forEach((f, i) => {
-      gif.writeFrame(applyPalette(f.rgba, palette), W, H, i === 0
+      gif.writeFrame(applyPalette(f.rgba, palette, format), W, H, i === 0
         // Shine loops forever; typing plays twice and stops on the full text.
-        ? { palette, delay: f.delay, repeat: opts.effect === 'shine' ? 0 : 1 }
-        : { delay: f.delay });
+        ? { palette, delay: f.delay, repeat: opts.effect === 'shine' ? 0 : 1, ...alpha }
+        : { delay: f.delay, ...alpha });
     });
     gif.finish();
     const bytes = gif.bytes();
