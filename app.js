@@ -17,6 +17,13 @@
     github: '',
     twitter: '',
     portfolio: '',
+    instagram: '',
+    whatsapp: '',
+    facebook: '',
+    youtube: '',
+    tiktok: '',
+    behance: '',
+    dribbble: '',
     photo: '',
     photoData: '',   // processed photo embedded in the signature (data URI)
     photoOrig: '',   // downscaled original, for re-applying shape/fit
@@ -80,12 +87,52 @@
     } catch { return ''; }
   }
 
-  // Profile fields also accept a bare handle ("astrid" or "@astrid").
-  const PROFILE_BASE = { linkedin: 'linkedin.com/in/', github: 'github.com/', twitter: 'x.com/' };
+  // Profile links. `base` lets a field take a bare username ("astrid" or
+  // "@astrid"); the first four are shown by default, the rest behind "More profiles".
+  const PROFILES = [
+    { key: 'linkedin', label: 'LinkedIn', icon: 'linkedin', base: 'linkedin.com/in/', primary: true },
+    { key: 'instagram', label: 'Instagram', icon: 'instagram', base: 'instagram.com/', primary: true },
+    { key: 'whatsapp', label: 'WhatsApp', icon: 'whatsapp', primary: true, type: 'tel', placeholder: '+972 50 123 4567' },
+    { key: 'portfolio', label: 'Portfolio / Other', short: 'Portfolio', icon: 'link', primary: true, placeholder: 'Any link, e.g. behance.net/you' },
+    { key: 'twitter', label: 'X / Twitter', short: 'X', icon: 'x', base: 'x.com/' },
+    { key: 'facebook', label: 'Facebook', icon: 'facebook', base: 'facebook.com/' },
+    { key: 'youtube', label: 'YouTube', icon: 'youtube', base: 'youtube.com/@', placeholder: 'Channel link or @handle' },
+    { key: 'tiktok', label: 'TikTok', icon: 'tiktok', base: 'tiktok.com/@', placeholder: 'Profile link or @handle' },
+    { key: 'github', label: 'GitHub', icon: 'github', base: 'github.com/' },
+    { key: 'behance', label: 'Behance', icon: 'behance', base: 'behance.net/' },
+    { key: 'dribbble', label: 'Dribbble', icon: 'dribbble', base: 'dribbble.com/' },
+  ];
+  const PROFILE = Object.fromEntries(PROFILES.map(p => [p.key, p]));
+
+  // Build the profile inputs now, before fields are bound and synced.
+  (function buildProfileFields() {
+    const field = p => `<label class="field">
+        <span>${p.label}</span>
+        <input type="${p.type || 'url'}" data-key="${p.key}" placeholder="${p.placeholder || (p.base ? 'Profile link or username' : '')}" />
+      </label>`;
+    document.getElementById('profileFields').innerHTML = PROFILES.filter(p => p.primary).map(field).join('');
+    document.getElementById('moreProfileFields').innerHTML = PROFILES.filter(p => !p.primary).map(field).join('');
+  })();
+
+  // WhatsApp: a phone number in international format becomes a wa.me chat link.
+  function whatsappUrl(raw) {
+    const v = String(raw || '').trim();
+    if (/^(https?:\/\/)?(wa\.me|api\.whatsapp\.com|chat\.whatsapp\.com)\//i.test(v)) return toUrl(v);
+    const digits = v.replace(/[\s().\-\/]/g, '');
+    return /^\+?[1-9]\d{7,14}$/.test(digits) ? `https://wa.me/${digits.replace('+', '')}` : '';
+  }
+
   function profileUrl(key, raw) {
     const v = String(raw || '').trim();
+    if (key === 'whatsapp') return whatsappUrl(v);
     const handle = v.replace(/^@/, '');
-    if (PROFILE_BASE[key] && /^[a-z0-9][a-z0-9_-]{0,99}$/i.test(handle)) return toUrl(PROFILE_BASE[key] + handle);
+    const base = PROFILE[key] && PROFILE[key].base;
+    // A bare word is a username ("oved.elisha" included), unless it looks like
+    // a web address ("instagram.com", "me.co.il").
+    const looksLikeDomain = /\.(com|net|org|io|co|il|app|dev|me|ly|gl|be|tv|info|biz|xyz|site|online|studio|design)$/i.test(handle);
+    if (base && /^[a-z0-9][a-z0-9._-]{0,99}$/i.test(handle) && !looksLikeDomain) {
+      return toUrl(base + handle);
+    }
     return toUrl(v);
   }
 
@@ -198,9 +245,9 @@
     if (s.address.trim()) contacts.push({ label: 'A', icon: 'location', dir: 'auto', text: s.address.trim(), href: '' });
     contacts.forEach(c => { c.word = words[c.icon]; });
 
-    const socials = [
-      ['LinkedIn', 'linkedin', 'linkedin'], ['GitHub', 'github', 'github'], ['X', 'x', 'twitter'], ['Portfolio', 'link', 'portfolio'],
-    ].map(([label, icon, key]) => ({ label, icon, href: profileUrl(key, s[key]) })).filter(x => x.href);
+    const socials = PROFILES
+      .map(p => ({ label: p.short || p.label, icon: p.icon, href: profileUrl(p.key, s[p.key]) }))
+      .filter(x => x.href);
 
     return {
       iconStyle, iconSet,
@@ -595,8 +642,14 @@
         return v && !EMAIL_RE.test(v) ? 'This doesn’t look like an email address, so it’s left out.' : '';
       case 'phone':
         return v && !PHONE_RE.test(v) ? 'Use only digits, spaces and + ( ) - so tap-to-call works.' : '';
-      case 'linkedin': case 'github': case 'twitter':
+      case 'linkedin': case 'instagram': case 'twitter': case 'facebook': case 'youtube':
+      case 'tiktok': case 'github': case 'behance': case 'dribbble':
         return v && !profileUrl(key, v) ? 'Enter a profile link or username — this one is left out.' : '';
+      case 'whatsapp':
+        if (!v || profileUrl(key, v)) return '';
+        return v.replace(/[^\d+]/g, '').startsWith('0')
+          ? 'Add your country code, e.g. +972 50 123 4567 — WhatsApp links need it.'
+          : 'Enter your WhatsApp number with country code, e.g. +972 50 123 4567.';
       case 'website': case 'portfolio':
         return v && !toUrl(v) ? 'Enter a web address like example.com — this one is left out.' : '';
       case 'photo': {
@@ -637,7 +690,7 @@
   }
 
   function addHintSlots() {
-    ['email', 'phone', 'website', 'linkedin', 'github', 'twitter', 'portfolio', 'photo', 'ctaText', 'ctaUrl'].forEach(key => {
+    ['email', 'phone', 'website', ...PROFILES.map(p => p.key), 'photo', 'ctaText', 'ctaUrl'].forEach(key => {
       const el = document.querySelector(`[data-key="${key}"]`);
       const hint = document.createElement('small');
       hint.className = 'field-hint';
@@ -1153,6 +1206,72 @@ ${signatureHtml(true)}
     persist();
     flash(remember ? 'Saved on this device only.' : 'Removed from this device.');
   });
+
+  // ---------- Feedback ----------
+  const fbDialog = $('#feedbackDialog');
+  const fbForm = $('#feedbackForm');
+  const fbStatus = $('#feedbackStatus');
+  const fbSend = $('#feedbackSend');
+  let fbKind = 'idea';
+
+  const setFbStatus = (msg, tone = '') => {
+    fbStatus.textContent = msg;
+    fbStatus.className = 'upload-status' + (tone ? ` is-${tone}` : '');
+  };
+
+  document.querySelectorAll('[data-open-feedback]').forEach(b => b.addEventListener('click', () => {
+    setFbStatus('');
+    fbSend.disabled = false;
+    fbSend.textContent = 'Send';
+    fbDialog.showModal();
+    $('#feedbackMessage').focus();
+  }));
+  $('#feedbackClose').addEventListener('click', () => fbDialog.close());
+  $('#feedbackCancel').addEventListener('click', () => fbDialog.close());
+  fbDialog.addEventListener('click', e => { if (e.target === fbDialog) fbDialog.close(); }); // backdrop
+
+  fbForm.querySelectorAll('[data-kind]').forEach(b => b.addEventListener('click', () => {
+    fbKind = b.dataset.kind;
+    fbForm.querySelectorAll('[data-kind]').forEach(x => x.setAttribute('aria-checked', String(x === b)));
+  }));
+
+  fbForm.addEventListener('submit', async e => {
+    e.preventDefault();
+    const message = $('#feedbackMessage').value.trim();
+    const email = $('#feedbackEmail').value.trim();
+    if (message.length < 3) return setFbStatus('Please write a little more.', 'warn');
+    if (email && !EMAIL_RE.test(email)) return setFbStatus('That email address doesn’t look right — or leave it empty.', 'warn');
+
+    fbSend.disabled = true;
+    fbSend.textContent = 'Sending…';
+    try {
+      const res = await fetch('/api/feedback', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ message, email, kind: fbKind, company: $('#feedbackCompany').value }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Couldn’t send your feedback. Please try again.');
+      fbForm.reset();
+      setFbStatus('Thank you! Your feedback was sent.', 'ok');
+      fbSend.textContent = 'Sent';
+      setTimeout(() => fbDialog.close(), 1600);
+    } catch (err) {
+      setFbStatus(err.message, 'warn');
+      fbSend.disabled = false;
+      fbSend.textContent = 'Send';
+    }
+  });
+
+  // "More profiles" reveals the less common profile fields.
+  const moreBtn = $('#moreProfiles');
+  const setMoreOpen = open => {
+    $('#moreProfileFields').hidden = !open;
+    moreBtn.setAttribute('aria-expanded', String(open));
+    moreBtn.textContent = open ? 'Fewer profiles' : 'More profiles (X, Facebook, YouTube, TikTok, GitHub…)';
+  };
+  setMoreOpen(PROFILES.some(p => !p.primary && String(state[p.key] || '').trim()));
+  moreBtn.addEventListener('click', () => setMoreOpen($('#moreProfileFields').hidden));
 
   if (state.siteCard) fetchCard();
   if (isImageData(state.photoOrig)) setUploadStatus(state.photoHost && toUrl(state.photo) ? HOSTED_MSG : EMBEDDED_MSG, 'ok');

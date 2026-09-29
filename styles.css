@@ -63,6 +63,40 @@ body {
 }
 .brand-name { font: 500 20px/1 var(--serif); letter-spacing: -0.01em; }
 .brand-tag { margin: 0; color: var(--muted); font-size: 13px; }
+.header-right { display: flex; align-items: center; gap: 16px; }
+
+.footer-links { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; }
+.footer-links a { color: var(--text); text-underline-offset: 3px; }
+.footer-links .link-btn { font-size: 13px; }
+
+/* Feedback dialog */
+.feedback {
+  width: min(480px, calc(100vw - 32px));
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg);
+  color: var(--text);
+  box-shadow: 0 24px 60px -20px rgba(44, 44, 44, .35);
+}
+.feedback::backdrop { background: rgba(44, 44, 44, .35); }
+.feedback form { display: grid; gap: 14px; padding: 22px 22px 20px; }
+.feedback-head { display: flex; align-items: center; justify-content: space-between; }
+.feedback h2 { margin: 0; font: 400 24px/1.2 var(--serif); }
+.feedback-sub { margin: -6px 0 0; font-size: 13.5px; color: var(--muted); }
+.feedback .field.full + .field.full { margin-top: 0; }
+.feedback-actions { display: flex; justify-content: flex-end; gap: 10px; }
+.feedback-actions .btn { flex: 0 0 auto; }
+.feedback .upload-status:empty { display: none; }
+.icon-close {
+  width: 32px; height: 32px;
+  border: 0; border-radius: 50%;
+  background: none;
+  font-size: 24px; line-height: 1; color: var(--muted);
+  cursor: pointer;
+}
+.icon-close:hover { background: var(--surface-2); color: var(--text); }
+.hp { position: absolute; left: -10000px; width: 1px; height: 1px; opacity: 0; }
 
 .site-footer {
   max-width: 1280px;
@@ -142,6 +176,8 @@ body {
 .upload-status.is-warn { color: #9A6A2F; }
 .upload-status.is-ok { color: #5F7560; }
 .upload-url { margin-top: 14px; }
+.more-profiles { margin-top: 14px; }
+.more-btn { margin-top: 12px; font-size: 13.5px; }
 .site-card-opts { margin-top: 16px; font-size: 13.5px; }
 .site-card-opts .toggle em { font-style: normal; color: var(--muted); margin-left: 4px; }
 .site-card-opts .field { margin-top: 12px; }

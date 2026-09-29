@@ -14,6 +14,10 @@ Uploads are rate limited (`api/_ratelimit.js`): 20/hour and 60/day per visitor, 
 
 Fonts (Inter, Fraunces — SIL OFL) are self-hosted in `fonts/`, so the page makes no third-party requests.
 
+## Feedback
+
+The **Feedback** button (header and footer) posts to `api/feedback.js`, which saves each message as a JSON file under `feedback/` in the Blob store (random filename, no IP or other identifiers). Read them in Vercel → **Storage → Blob → feedback/**. Limits: 5/hour per visitor, 300/day overall, plus a hidden honeypot field for bots.
+
 ## Contact icons
 
 Icon artwork lives in `icons.js` (Tabler Icons, MIT) and is shared by the page and `api/icon.js`. The preview draws the SVG directly; exported signatures point at `/i/<set>/<hex>/<name>.png`, which `api/icon.js` renders to PNG with resvg (email clients don't support SVG) and the CDN caches forever. Signatures therefore depend on the production domain staying public and stable.

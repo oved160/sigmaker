@@ -30,7 +30,10 @@
       <span class="brand-mark" aria-hidden="true">S</span>
       <span class="brand-name">SigMaker</span>
     </div>
-    <p class="brand-tag">Free email signatures. No account. No tracking.</p>
+    <div class="header-right">
+      <p class="brand-tag">Free email signatures. No account. No tracking.</p>
+      <button type="button" class="btn small" data-open-feedback>Feedback</button>
+    </div>
   </header>
 
   <main class="layout">
@@ -100,24 +103,9 @@
 
       <fieldset class="group">
         <legend>Profiles</legend>
-        <div class="grid">
-          <label class="field">
-            <span>LinkedIn</span>
-            <input type="url" data-key="linkedin" placeholder="Profile link or username" />
-          </label>
-          <label class="field">
-            <span>GitHub</span>
-            <input type="url" data-key="github" placeholder="Profile link or username" />
-          </label>
-          <label class="field">
-            <span>X / Twitter</span>
-            <input type="url" data-key="twitter" placeholder="Profile link or @handle" />
-          </label>
-          <label class="field">
-            <span>Portfolio / Other</span>
-            <input type="url" data-key="portfolio" placeholder="dribbble.com/astrid" />
-          </label>
-        </div>
+        <div class="grid" id="profileFields"></div>
+        <div class="grid more-profiles" id="moreProfileFields" hidden></div>
+        <button type="button" class="link-btn more-btn" id="moreProfiles" aria-expanded="false" aria-controls="moreProfileFields">More profiles</button>
       </fieldset>
 
       <fieldset class="group">
@@ -292,8 +280,43 @@
   </main>
 
   <footer class="site-footer">
-    <p>SigMaker runs in your browser. No accounts, cookies, or analytics — the only thing ever uploaded is an image you choose to host.</p>
+    <p>SigMaker runs in your browser. No accounts, cookies, or analytics. Nothing you type leaves your device, except a photo you choose to host, your website address when you turn on its preview card, and feedback you send.</p>
+    <p class="footer-links">
+      <span>Built by <a href="https://www.linkedin.com/in/oved-elisha-3ba8851aa/" target="_blank" rel="noopener">Oved Elisha</a></span>
+      <span aria-hidden="true">·</span>
+      <button type="button" class="link-btn" data-open-feedback>Send feedback</button>
+    </p>
   </footer>
+
+  <dialog class="feedback" id="feedbackDialog" aria-labelledby="feedbackTitle">
+    <form id="feedbackForm" novalidate>
+      <div class="feedback-head">
+        <h2 id="feedbackTitle">Send feedback</h2>
+        <button type="button" class="icon-close" id="feedbackClose" aria-label="Close">&times;</button>
+      </div>
+      <p class="feedback-sub">Ideas, bugs, anything. It goes straight to the maker — no account needed.</p>
+      <div class="seg seg-wide" role="radiogroup" aria-label="Feedback type">
+        <button type="button" class="seg-btn" role="radio" data-kind="idea" aria-checked="true">Idea</button>
+        <button type="button" class="seg-btn" role="radio" data-kind="bug" aria-checked="false">Something's broken</button>
+        <button type="button" class="seg-btn" role="radio" data-kind="other" aria-checked="false">Other</button>
+      </div>
+      <label class="field full">
+        <span>Message</span>
+        <textarea id="feedbackMessage" rows="5" maxlength="3000" dir="auto" required placeholder="What would make SigMaker better?"></textarea>
+      </label>
+      <label class="field full">
+        <span>Your email <em>optional — only if you'd like a reply</em></span>
+        <input type="email" id="feedbackEmail" dir="ltr" autocomplete="email" maxlength="200" />
+      </label>
+      <!-- Hidden from people; bots fill it in. -->
+      <input type="text" id="feedbackCompany" name="company" tabindex="-1" autocomplete="off" class="hp" aria-hidden="true" />
+      <p class="upload-status" id="feedbackStatus" role="status" aria-live="polite"></p>
+      <div class="feedback-actions">
+        <button type="button" class="btn" id="feedbackCancel">Cancel</button>
+        <button type="submit" class="btn primary" id="feedbackSend">Send</button>
+      </div>
+    </form>
+  </dialog>
 
   <nav class="mobile-tabs" aria-label="View">
     <button type="button" class="mtab is-active" data-mview="edit">
