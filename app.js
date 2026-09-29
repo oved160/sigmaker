@@ -28,6 +28,8 @@
     photoData: '',   // processed photo embedded in the signature (data URI)
     photoOrig: '',   // downscaled original, for re-applying shape/fit
     photoHost: false, // opt-in: also upload to Vercel Blob and link to it
+    photoHosted: '',  // hosted copy's URL (when photoHost is on)
+    photoFrom: '',    // pasted link that photoOrig/photoData were made from
     photoFit: 'cover',
     siteCard: false,       // show a link-preview card for the website
     siteCardTitle: '',
@@ -223,6 +225,16 @@
     return 'en';
   }
 
+  // Which photo the signature uses: the hosted copy (opt-in), else the processed
+  // embedded image, else — while a pasted link is still being processed, or if
+  // it can't be — the link itself.
+  function photoSrc(s) {
+    if (s.photoHost && toUrl(s.photoHosted)) return toUrl(s.photoHosted);
+    const link = String(s.photo || '').trim();
+    if (isImageData(s.photoData) && (!link || s.photoFrom === link)) return s.photoData;
+    return photoLink(link).url;
+  }
+
   // ---------- Data shaping ----------
   function iconSrc(set, name, color, forExport) {
     if (forExport && ICON_HOST) return `${ICON_HOST}/i/${set}/${color.slice(1).toLowerCase()}/${name}.png`;
@@ -265,7 +277,7 @@
       title: s.title.trim(),
       company: s.company.trim(),
       // A hosted link wins; an embedded image is the fallback when hosting isn't available.
-      photo: photoLink(s.photo).url || (isImageData(s.photoData) ? s.photoData : ''),
+      photo: photoSrc(s),
       photoFit: s.photoFit === 'contain' ? 'contain' : 'cover',
       photoSize, radius,
       // Only fonts offered in the picker (values are trusted, never user-typed)
@@ -826,7 +838,7 @@
   }
 
   function syncPhotoUI() {
-    const src = photoLink(state.photo).url || (isImageData(state.photoData) ? state.photoData : '');
+    const src = photoSrc(state);
     const thumb = $('#uploadThumb');
     thumb.style.backgroundImage = src ? `url("${src.replace(/"/g, '%22')}")` : '';
     thumb.style.backgroundSize = state.photoFit === 'contain' ? 'contain' : 'cover';
@@ -865,7 +877,8 @@
     ctx.imageSmoothingQuality = 'high';
     ctx.drawImage(src, 0, 0, canvas.width, canvas.height);
     // Keep PNG for sources that may be transparent logos.
-    return canvas.toDataURL(file.type === 'image/jpeg' ? 'image/jpeg' : 'image/png', 0.9);
+    const jpeg = typeof file === 'string' ? file.startsWith('data:image/jpeg') : file.type === 'image/jpeg';
+    return canvas.toDataURL(jpeg ? 'image/jpeg' : 'image/png', 0.9);
   }
 
   async function prepareImage(source, fit, shape) {
@@ -927,7 +940,7 @@
     const key = `${state.photoFit}|${state.photoShape}`;
 
     if (state.photoHost && variants.has(key)) {
-      state.photo = variants.get(key);
+      state.photoHosted = variants.get(key);
       setUploadStatus(HOSTED_MSG, 'ok');
       syncFields();
       render();
@@ -939,7 +952,7 @@
       const { blob, dataUrl } = await prepareImage(state.photoOrig, state.photoFit, state.photoShape);
       if (seq !== uploadSeq) return;
       state.photoData = dataUrl;
-      state.photo = '';
+      state.photoHosted = '';
       syncFields();
       render();
 
@@ -952,7 +965,7 @@
         const url = await hostImage(blob);
         if (seq !== uploadSeq) return;
         variants.set(key, url);
-        state.photo = url;
+        state.photoHosted = url;
         setUploadStatus(HOSTED_MSG, 'ok');
       } catch (err) {
         if (seq !== uploadSeq) return;
@@ -978,8 +991,38 @@
     } catch {
       return setUploadStatus('Couldn’t read that image. Try a PNG or JPG.', 'warn');
     }
+    state.photo = '';
+    state.photoFrom = '';
     variants = new Map();
     await applyPhoto();
+  }
+
+  // A pasted image link is fetched once (via /api/image, public hosts only) and
+  // then cropped, shaped and embedded like an upload. Mail apps ignore
+  // object-fit, so using the link directly squashes non-square photos.
+  let linkTimer = 0;
+  async function importPhotoLink() {
+    const link = String(state.photo || '').trim();
+    const { url, problem } = photoLink(link);
+    if (!url || (problem && !url)) return;
+    if (state.photoFrom === link && isImageData(state.photoData)) return;
+
+    const seq = ++uploadSeq;
+    setUploadStatus('Loading the image from your link…');
+    try {
+      if (!/^https?:$/.test(location.protocol)) throw new Error('Image links can only be processed on the live site.');
+      const res = await fetch('/api/image?url=' + encodeURIComponent(url));
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.image) throw new Error(data.error || 'Couldn’t load that image.');
+      const orig = await makeOriginal(data.image);
+      if (seq !== uploadSeq || String(state.photo || '').trim() !== link) return;
+      state.photoOrig = orig;
+      state.photoFrom = link;
+      variants = new Map();
+      await applyPhoto();
+    } catch (err) {
+      if (seq === uploadSeq) setUploadStatus(`${err.message} The link is used as-is, which can look squashed in some email apps.`, 'warn');
+    }
   }
 
   function clearPhoto(msg = DEFAULT_UPLOAD_MSG) {
@@ -988,6 +1031,8 @@
     state.photo = '';
     state.photoData = '';
     state.photoOrig = '';
+    state.photoHosted = '';
+    state.photoFrom = '';
     $('#uploadLabel').parentElement.classList.remove('is-busy');
     setUploadStatus(msg);
   }
@@ -1199,7 +1244,11 @@
           variants = new Map();
           state.photoData = '';
           state.photoOrig = '';
+          state.photoHosted = '';
+          state.photoFrom = '';
           setUploadStatus(DEFAULT_UPLOAD_MSG);
+          clearTimeout(linkTimer);
+          linkTimer = setTimeout(importPhotoLink, 700);
         }
         render();
         // Fit and shape are baked into uploaded images, so re-process the file.
@@ -1380,7 +1429,10 @@ ${signatureHtml(true)}
   moreBtn.addEventListener('click', () => setMoreOpen($('#moreProfileFields').hidden));
 
   if (state.siteCard) fetchCard();
-  if (isImageData(state.photoOrig)) setUploadStatus(state.photoHost && toUrl(state.photo) ? HOSTED_MSG : EMBEDDED_MSG, 'ok');
+  // Saved photo state: older saves kept a hosted URL in the link field — treat
+  // it like any pasted link (re-embedded below).
+  if (isImageData(state.photoOrig)) setUploadStatus(state.photoHost && toUrl(state.photoHosted) ? HOSTED_MSG : EMBEDDED_MSG, 'ok');
+  if (String(state.photo || '').trim() && state.photoFrom !== String(state.photo).trim()) importPhotoLink();
 
   $('#reset').addEventListener('click', () => {
     clearPhoto();
