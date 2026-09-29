@@ -51,7 +51,7 @@ export async function POST(request) {
 
   const createdAt = new Date().toISOString();
   try {
-    await put(`feedback/${createdAt.slice(0, 10)}-${crypto.randomUUID()}.json`, JSON.stringify({
+    const blob = await put(`feedback/${createdAt.slice(0, 10)}-${crypto.randomUUID()}.json`, JSON.stringify({
       createdAt,
       message,
       email: email || null,
@@ -61,7 +61,9 @@ export async function POST(request) {
       contentType: 'application/json',
       cacheControlMaxAge: 60,
     });
-    return json({ ok: true });
+    console.log('Feedback saved:', blob.pathname);
+    // The sender already knows the content; the URL helps confirm which store it went to.
+    return json({ ok: true, url: blob.url });
   } catch (err) {
     console.error('Feedback save failed:', err);
     return json({ error: 'Couldn’t send your feedback. Please try again.' }, 502);
