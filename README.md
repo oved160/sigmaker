@@ -26,7 +26,7 @@ Icon artwork lives in `icons.js` (Tabler Icons, MIT) and is shared by the page a
 
 1. Push this folder to a GitHub repo, then **Add New → Project** on vercel.com and import it (framework preset: **Other**, no build command).
    Or from this folder: `npx vercel` and follow the prompts.
-2. In the project, open **Storage → Create → Blob**, choose **Public** access and the **Frankfurt (fra1)** region (matching the function region in `vercel.json`), and connect it to the project. This adds the `BLOB_READ_WRITE_TOKEN` environment variable.
+2. In the project, open **Storage → Create → Blob**, choose **Public** access and the **Frankfurt (fra1)** region (matching the function region in `vercel.json`), and connect it to the project. This adds `BLOB_STORE_ID` (OIDC) or, on older connections, `BLOB_READ_WRITE_TOKEN` — either works.
 3. Redeploy so the function picks up the token.
 4. **Settings → Deployment Protection:** turn off Vercel Authentication for production. Otherwise the site and the icon images in sent signatures require a Vercel login.
 

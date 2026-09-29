@@ -1,5 +1,6 @@
 import { put } from '@vercel/blob';
 import { rateLimit } from './_ratelimit.js';
+import { blobConfigured } from './_blob.js';
 
 // Stores visitor feedback in the Blob store under feedback/, one JSON file per
 // message at a random path. Read them in Vercel → Storage → Blob → feedback/.
@@ -26,7 +27,7 @@ export async function POST(request) {
   } catch {
     return json({ error: 'Forbidden' }, 403);
   }
-  if (!process.env.BLOB_READ_WRITE_TOKEN) return json({ error: 'Feedback isn’t set up on this deployment.' }, 501);
+  if (!blobConfigured()) return json({ error: 'Feedback isn’t set up on this deployment.' }, 501);
 
   const raw = await request.text();
   if (raw.length > MAX_BODY) return json({ error: 'That message is too long.' }, 413);

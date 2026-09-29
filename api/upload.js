@@ -1,5 +1,6 @@
 import { put } from '@vercel/blob';
 import { rateLimit } from './_ratelimit.js';
+import { blobConfigured } from './_blob.js';
 
 // Generous for real use (re-cropping or changing shape re-uploads), tight for bots.
 const LIMITS = [
@@ -36,7 +37,7 @@ export async function POST(request) {
     return json({ error: 'Forbidden' }, 403);
   }
 
-  if (!process.env.BLOB_READ_WRITE_TOKEN) {
+  if (!blobConfigured()) {
     return json({ error: 'Image hosting is not configured on this deployment.' }, 501);
   }
 
