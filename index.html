@@ -172,10 +172,13 @@
           <small class="dir-note" id="dirNote"></small>
         </div>
         <div class="field anim-field">
-          <span>Animation <em>subtle, optional</em></span>
-          <div class="anim-parts">
-            <label class="check check-wide"><input type="checkbox" id="animUnderline" /> Accent line under your name <em>a soft light glides along it</em></label>
-            <label class="check check-wide"><input type="checkbox" id="animArrow" /> Arrow after your website link <em>nudges forward now and then</em></label>
+          <span>Photo animation <em>subtle, looks right in dark mode</em></span>
+          <div class="seg seg-wide anim-seg" id="animPicker" role="radiogroup" aria-label="Photo animation">
+            <button type="button" class="seg-btn" role="radio" data-anim="none">None</button>
+            <button type="button" class="seg-btn" role="radio" data-anim="glow">Glow</button>
+            <button type="button" class="seg-btn" role="radio" data-anim="orbit">Orbit</button>
+            <button type="button" class="seg-btn" role="radio" data-anim="story">Story ring</button>
+            <button type="button" class="seg-btn" role="radio" data-anim="shimmer">Shimmer</button>
           </div>
           <small class="dir-note" id="animNote"></small>
         </div>

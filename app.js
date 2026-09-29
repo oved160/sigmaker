@@ -45,8 +45,7 @@
     disclaimer: '',
     accent: '#4A6B5D',
     iconStyle: 'line',
-    animUnderline: false, // animated accent line under the name (GIF)
-    animArrow: false,     // nudging arrow after the website link (GIF)
+    photoAnim: 'none',    // 'none' | 'glow' | 'orbit' | 'story' | 'shimmer' — animated photo (GIF)
     dir: 'auto',
     template: 'classic',
   };
@@ -69,7 +68,7 @@
   const EMPTY = Object.fromEntries(Object.keys(SAMPLE).map(k => [k, '']));
   Object.assign(EMPTY, {
     photoShape: 'circle', photoFit: 'cover', photoHost: false, siteCard: false, photoSize: '72', font: SAMPLE.font, fontSize: '13',
-    accent: '#2C2C2C', iconStyle: 'line', animUnderline: false, animArrow: false, dir: 'auto', template: 'classic',
+    accent: '#2C2C2C', iconStyle: 'line', photoAnim: 'none', dir: 'auto', template: 'classic',
   });
 
   const FONTS = [...document.querySelectorAll('select[data-key="font"] option')].map(o => o.value);
@@ -232,6 +231,8 @@
     return photoLink(link).url;
   }
 
+  const PHOTO_ANIMS = ['glow', 'orbit', 'story', 'shimmer'];
+
   // ---------- Data shaping ----------
   function iconSrc(set, name, color, forExport) {
     if (forExport && ICON_HOST) return `${ICON_HOST}/i/${set}/${color.slice(1).toLowerCase()}/${name}.png`;
@@ -267,7 +268,8 @@
       iconStyle, iconSet,
       icon: name => iconSrc(iconSet, name, accent, forExport),
       dir, rtl: dir === 'rtl',
-      anim: { underline: !!s.animUnderline, arrow: !!s.animArrow },
+      photoAnim: PHOTO_ANIMS.includes(s.photoAnim) ? s.photoAnim : 'none',
+      photoShape: ['circle', 'rounded', 'square'].includes(s.photoShape) ? s.photoShape : 'circle',
       name: s.name.trim(),
       title: s.title.trim(),
       company: s.company.trim(),
@@ -313,21 +315,9 @@
     `<td width="${w}" style="width:${w}px;min-width:${w}px;font-size:0;line-height:0;">&nbsp;</td>`;
   const arrow = m => (m.rtl ? '&larr;' : '&rarr;');
 
-  // Animated accent (a GIF from anim.js), or '' while it's still being made.
-  function accentImg(kind, opts, alt = '') {
-    const gif = requestAnim({ kind, ...opts });
-    if (!gif) return '';
-    return `<img src="${gif.dataUrl}" width="${gif.width}" height="${gif.height}" alt="${esc(alt)}" style="display:${kind === 'underline' ? 'block' : 'inline-block'};width:${gif.width}px;height:${gif.height}px;border:0;vertical-align:middle;" />`;
-  }
-
   function nameLine(m, size, { color = TEXT } = {}) {
     if (!m.name) return '';
-    // Optional animated accent line under the name (white on the Banner block).
-    const line = m.anim.underline
-      ? accentImg('underline', { color: color === TEXT ? m.accent : '#FFFFFF', rtl: m.rtl })
-      : '';
-    return `<div style="font-size:${size}px;line-height:1.25;font-weight:bold;color:${color};margin:0;">${txt(m.name)}</div>`
-      + (line ? `<div style="margin:5px 0 3px;line-height:0;font-size:0;">${line}</div>` : '');
+    return `<div style="font-size:${size}px;line-height:1.25;font-weight:bold;color:${color};margin:0;">${txt(m.name)}</div>`;
   }
 
   // "Title, Company" — each part isolated so a Hebrew title and English company keep their order.
@@ -351,12 +341,6 @@
   }
 
   function contactValue(m, c, color = TEXT) {
-    if (c.icon === 'website' && m.anim.arrow) {
-      const arrow = accentImg('arrow', { color: m.accent, rtl: m.rtl, size: Math.max(11, m.fs - 1) });
-      if (arrow) {
-        return `${link(m, c.href, c.text, color, c.dir)}&nbsp;<a href="${esc(c.href)}" style="text-decoration:none;">${arrow}</a>`;
-      }
-    }
     return c.href ? link(m, c.href, c.text, color, c.dir) : `<span style="color:${color};">${txt(c.text, c.dir)}</span>`;
   }
 
@@ -411,6 +395,17 @@
 
   function photoImg(m, size = m.photoSize) {
     if (!m.photo) return '';
+    // Animated photo (GIF): needs the embedded image, since canvas can't read
+    // pixels from other sites. Until it's ready the still photo is used.
+    if (m.photoAnim !== 'none' && m.photo.startsWith('data:image/')) {
+      const gif = requestAnim({
+        kind: 'photo', effect: m.photoAnim, size, shape: m.photoShape,
+        color: m.accent, radiusRatio: ROUNDED_RATIO, src: m.photo,
+      });
+      if (gif) {
+        return `<img src="${gif.dataUrl}" width="${size}" height="${size}" alt="${esc(m.name || 'Photo')}" style="display:block;width:${size}px;height:${size}px;border:0;" />`;
+      }
+    }
     return `<img src="${esc(m.photo)}" width="${size}" height="${size}" alt="${esc(m.name || 'Photo')}" style="display:block;width:${size}px;height:${size}px;border-radius:${m.radius};object-fit:${m.photoFit};border:0;" />`;
   }
 
@@ -632,7 +627,9 @@
   let animTimer = 0;
 
   function requestAnim(opts) {
-    const key = JSON.stringify(opts);
+    // The photo's data URL is long; key on a fingerprint of it instead.
+    const src = opts.src || '';
+    const key = JSON.stringify({ ...opts, src: `${src.length}:${src.slice(-48)}:${src.slice(200, 248)}` });
     const hit = animCache.get(key);
     if (hit) return hit.status === 'ready' ? hit.gif : null;
     animQueue.set(key, opts);
@@ -658,16 +655,28 @@
     render();
   }
 
-  // ---------- Animation options ----------
+  // ---------- Photo animation picker ----------
+  const ANIM_NOTES = {
+    glow: 'The ring around your photo softly brightens twice every few seconds.',
+    orbit: 'A small light travels once around your photo every few seconds.',
+    story: 'A soft gradient ring slowly turns around your photo.',
+    shimmer: 'A gentle light sweeps across your photo every few seconds.',
+  };
   function syncAnim() {
-    $('#animUnderline').checked = !!state.animUnderline;
-    $('#animArrow').checked = !!state.animArrow;
-    $('#animNote').textContent = state.animUnderline || state.animArrow
-      ? 'Plays in Gmail, Apple Mail and new Outlook; classic Outlook for Windows shows it still.'
-      : '';
+    const effect = PHOTO_ANIMS.includes(state.photoAnim) ? state.photoAnim : 'none';
+    document.querySelectorAll('#animPicker [data-anim]').forEach(b =>
+      b.setAttribute('aria-checked', String(b.dataset.anim === effect)));
+    const hasPhoto = isImageData(state.photoData) && !(state.photoHost && toUrl(state.photoHosted));
+    $('#animNote').textContent = effect === 'none' ? ''
+      : !hasPhoto ? 'Add a photo above (upload or link) to see the animation. It isn’t available when hosting the photo online.'
+        : `${ANIM_NOTES[effect]} Plays in Gmail, Apple Mail and new Outlook; classic Outlook for Windows shows it still.`;
   }
-  $('#animUnderline').addEventListener('change', e => { state.animUnderline = e.target.checked; render(); });
-  $('#animArrow').addEventListener('change', e => { state.animArrow = e.target.checked; render(); });
+  $('#animPicker').addEventListener('click', e => {
+    const btn = e.target.closest('[data-anim]');
+    if (!btn) return;
+    state.photoAnim = btn.dataset.anim;
+    render();
+  });
 
   // ---------- Text direction picker ----------
   function syncDir() {

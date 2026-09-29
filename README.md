@@ -18,9 +18,14 @@ Fonts (Inter, Fraunces — SIL OFL) are self-hosted in `fonts/`, so the page mak
 
 The **Feedback** button (header and footer) posts to `api/feedback.js`, which saves each message as a JSON file under `feedback/` in the Blob store (random filename, no IP or other identifiers). Read them at **`/feedback-inbox`** — a private page (not linked, `noindex`) protected by the `FEEDBACK_KEY` environment variable, with delete — or in Vercel → **Storage → Blob → feedback/**. Limits: 10/hour per network, 300/day overall. The form only reports success when the server returns the saved file’s URL.
 
-## Animated accents
+## Photo animation
 
-Email apps strip CSS/JS animation but play animated GIFs. SigMaker never turns text into an image (it can't match the real text or follow dark mode); instead two optional accents are drawn on a canvas and encoded to GIF in the browser by `anim.js` with [gifenc](https://github.com/mattdesl/gifenc) (MIT, vendored in `vendor/`): an **accent line under the name** with a light gliding along it, and a **nudging arrow** after the website link. Both have transparent backgrounds (1-bit alpha), are a few KB, and are embedded like the photo. Frame 0 is the resting state, because classic Outlook for Windows shows only the first frame. The preview's **Dark** toggle approximates Gmail's phone dark mode.
+Email apps strip CSS/JS animation but play animated GIFs, so the optional photo animation is drawn frame by frame on a canvas and encoded to GIF in the browser by `anim.js`, using [gifenc](https://github.com/mattdesl/gifenc) (MIT, vendored in `vendor/`). Styles: **Glow** (ring brightens twice), **Orbit** (a light travels around the ring), **Story ring** (a gradient ring turns) and **Shimmer** (a light sweeps across the photo).
+
+- **Dark mode:** GIFs only have on/off transparency, so a soft glow can't fade into an unknown background. Every style keeps a solid outline (a ring, or the photo itself) whose colours animate; outside it stays transparent. The preview's **Dark** toggle approximates Gmail's phone dark mode.
+- **Size:** frame 0 is the full photo; later frames contain only changed pixels (transparent = keep previous), so results are ~50–125 KB, within the usual ≤150 KB guidance.
+- **Outlook:** frame 0 is the resting state, since classic Outlook for Windows shows only the first frame.
+- Text is never turned into an image — it can't match real text or follow dark mode.
 
 ## Contact icons
 
