@@ -171,6 +171,20 @@
           </div>
           <small class="dir-note" id="dirNote"></small>
         </div>
+        <div class="field anim-field">
+          <span>Animation <em>a small animated image, like a GIF</em></span>
+          <div class="seg seg-wide" id="animPicker" role="radiogroup" aria-label="Animation">
+            <button type="button" class="seg-btn" role="radio" data-anim="none">None</button>
+            <button type="button" class="seg-btn" role="radio" data-anim="shine">Shine</button>
+            <button type="button" class="seg-btn" role="radio" data-anim="type">Typing</button>
+          </div>
+          <div class="anim-parts" id="animParts" hidden>
+            <label class="check"><input type="checkbox" data-anim-part="animName" /> Name</label>
+            <label class="check"><input type="checkbox" data-anim-part="animTitle" /> Job title</label>
+            <label class="check"><input type="checkbox" data-anim-part="animWebsite" /> Website link</label>
+          </div>
+          <small class="dir-note" id="animNote"></small>
+        </div>
         <div class="field icons-field">
           <span>Contact icons</span>
           <div class="icon-styles" id="iconStyles" role="radiogroup" aria-label="Contact icon style"></div>
@@ -328,6 +342,7 @@
   </nav>
 
   <script src="icons.js"></script>
+  <script src="anim.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

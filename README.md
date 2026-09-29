@@ -18,6 +18,10 @@ Fonts (Inter, Fraunces — SIL OFL) are self-hosted in `fonts/`, so the page mak
 
 The **Feedback** button (header and footer) posts to `api/feedback.js`, which saves each message as a JSON file under `feedback/` in the Blob store (random filename, no IP or other identifiers). Read them at **`/feedback-inbox`** — a private page (not linked, `noindex`) protected by the `FEEDBACK_KEY` environment variable, with delete — or in Vercel → **Storage → Blob → feedback/**. Limits: 10/hour per network, 300/day overall. The form only reports success when the server returns the saved file’s URL.
 
+## Animated text
+
+Email apps strip CSS/JS animation but play animated GIFs, so the optional **Shine** and **Typing** effects (name, job title, website link) are drawn frame by frame on a canvas and encoded to GIF in the browser by `anim.js`, using [gifenc](https://github.com/mattdesl/gifenc) (MIT, vendored in `vendor/`). Frame 0 is always the complete text, because classic Outlook for Windows shows only the first frame. Each GIF is embedded like the photo (~15–40 KB) and carries the text as `alt`. They're drawn on the signature's background colour, so they look boxed in mail apps' dark modes.
+
 ## Contact icons
 
 Icon artwork lives in `icons.js` (Tabler Icons, MIT) and is shared by the page and `api/icon.js`. The preview draws the SVG directly; exported signatures point at `/i/<set>/<hex>/<name>.png`, which `api/icon.js` renders to PNG with resvg (email clients don't support SVG) and the CDN caches forever. Signatures therefore depend on the production domain staying public and stable.
