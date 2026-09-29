@@ -428,7 +428,7 @@
       build(m) {
         const divider = `<td width="2" valign="top" style="width:2px;background:${m.accent};font-size:0;line-height:0;">&nbsp;</td>`;
         const lead = m.photo
-          ? `<td valign="top">${photoImg(m)}</td>${spacer(16)}${divider}${spacer(16)}<td valign="top">`
+          ? `<td valign="middle" style="vertical-align:middle;">${photoImg(m)}</td>${spacer(16)}${divider}${spacer(16)}<td valign="top">`
           : `${divider}${spacer(16)}<td valign="top">`;
         return signoff(m) + wrap(m, `<tr>${lead}
           ${nameLine(m, m.fs + 5)}
