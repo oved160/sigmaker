@@ -9,5 +9,8 @@
     "@resvg/resvg-js": "^2.6.2",
     "@vercel/blob": "^2.8.0",
     "undici": "^8.11.2"
-  }
+  },
+  "license": "MIT",
+  "description": "Free, privacy-first HTML email signature generator",
+  "homepage": "https://sigmaker-silk.vercel.app"
 }

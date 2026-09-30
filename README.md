@@ -1,5 +1,7 @@
 # SigMaker
 
+**Live: [sigmaker-silk.vercel.app](https://sigmaker-silk.vercel.app)** · by [Oved Elisha](https://www.linkedin.com/in/oved-elisha-3ba8851aa/)
+
 Free, privacy-first HTML email signature generator. Static front end (`index.html`, `styles.css`, `app.js`) plus serverless functions for contact icons (`api/icon.js`) and optional photo hosting (`api/upload.js`, Vercel Blob).
 
 ## Photos: embedded by default
@@ -66,3 +68,14 @@ npx vercel dev
 ```
 
 Opening `index.html` directly works too, minus image hosting.
+
+## License
+
+SigMaker is released under the [MIT License](LICENSE).
+
+Third-party components keep their own licences:
+
+- Icons — [Tabler Icons](https://tabler.io/icons), MIT (`icons.js`)
+- GIF encoder — [gifenc](https://github.com/mattdesl/gifenc) by Matt DesLauriers, MIT (`vendor/`)
+- Fonts — [Inter](https://github.com/rsms/inter) and [Fraunces](https://github.com/undercasetype/Fraunces), SIL Open Font License 1.1 (`fonts/`)
+- Server dependencies (`@vercel/blob`, `@resvg/resvg-js`, `undici`) under their respective licences via npm
