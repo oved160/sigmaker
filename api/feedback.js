@@ -55,11 +55,9 @@ export async function POST(request) {
       contentType: 'application/json',
       cacheControlMaxAge: 60,
     });
-    console.log('Feedback saved:', blob.pathname);
-    // The sender already knows the content; the URL helps confirm which store it went to.
-    return json({ ok: true, url: blob.url });
+    return json({ ok: true, saved: Boolean(blob.pathname) });
   } catch (err) {
-    console.error('Feedback save failed:', err);
+    console.error('Feedback save failed:', err?.name || 'error');
     return json({ error: 'Couldn’t send your feedback. Please try again.' }, 502);
   }
 }

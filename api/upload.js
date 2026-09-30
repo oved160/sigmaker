@@ -66,7 +66,7 @@ export async function POST(request) {
     });
     return json({ url: blob.url });
   } catch (err) {
-    console.error('Blob upload failed:', err);
+    console.error('Blob upload failed:', err?.name || 'error');
     return json({ error: 'Upload failed. Please try again.' }, 502);
   }
 }

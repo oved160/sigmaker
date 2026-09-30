@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Privacy — SigMaker</title>
+  <meta name="description" content="What SigMaker does and doesn't do with your data." />
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="/" style="text-decoration:none;color:inherit;">
+      <span class="brand-mark" aria-hidden="true">S</span>
+      <span class="brand-name">SigMaker</span>
+    </a>
+    <p class="brand-tag"><a href="/" class="back-link">← Back to SigMaker</a></p>
+  </header>
+
+  <main class="doc">
+    <h1>Privacy</h1>
+    <p class="doc-lead">SigMaker is built to know as little about you as possible. No account, no cookies, no ads, no third-party scripts or fonts.</p>
+
+    <h2>What stays in your browser</h2>
+    <p>Everything you type — name, contact details, links — and your photo are processed on your own device. They're only saved there if you turn on <b>“Remember my details on this device”</b>, and you can remove them any time with <b>Clear all</b>. Your signature itself is copied to your clipboard; we never see it.</p>
+
+    <h2>What reaches our server, and only when you choose to</h2>
+    <ul>
+      <li><b>Website preview card</b> — if you turn it on, your website address is sent so the server can read that site's preview image and title. Nothing is stored.</li>
+      <li><b>Pasted photo link</b> — the link is sent so the server can fetch the image for your browser to crop. Nothing is stored.</li>
+      <li><b>“Also host my photo online”</b> (off by default) — your processed photo is stored at a random, unguessable public link so email apps can load it. It isn't deleted automatically; ask via feedback to have it removed.</li>
+      <li><b>Feedback</b> — your message, its type, and your email only if you add it. Stored privately; read only by the maker.</li>
+    </ul>
+    <p>These requests carry the link in the request body, so it isn't written to access logs.</p>
+
+    <h2>Anonymous counts</h2>
+    <p>To know whether SigMaker is useful, we count two things as daily totals: that a browser visited today, and that a signature was copied or downloaded. No cookies, IP addresses or identifiers are stored — only the numbers. A date in your browser's storage prevents counting the same visit twice. If your browser sends <b>Do Not Track</b> or <b>Global Privacy Control</b>, you're not counted at all.</p>
+
+    <h2>Abuse protection</h2>
+    <p>To stop bots, requests are rate-limited per network. For this, a scrambled (hashed, salted) form of the network address is kept for up to a day and then discarded. It can't be turned back into the address.</p>
+
+    <h2>Where it runs</h2>
+    <p>The site and its storage are hosted by Vercel in Frankfurt (EU). Usage counts and rate limits use Upstash Redis. Signatures created now contain their icons and photo, so they don't load anything from SigMaker when your recipients open an email.</p>
+
+    <h2>Questions</h2>
+    <p>Use <b>Send feedback</b> on the <a href="/">main page</a>. SigMaker is built by <a href="https://www.linkedin.com/in/oved-elisha-3ba8851aa/" target="_blank" rel="noopener">Oved Elisha</a>.</p>
+    <p class="doc-updated">Last updated: September 30, 2026</p>
+  </main>
+</body>
+</html>

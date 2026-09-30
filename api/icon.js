@@ -1,4 +1,5 @@
 import { Resvg } from '@resvg/resvg-js';
+import { rateLimit } from './_ratelimit.js';
 import '../icons.js';
 
 // Email clients don't render SVG, so signature icons are served as PNGs
@@ -7,7 +8,12 @@ import '../icons.js';
 const { SETS, NAMES, svg } = globalThis.SIG_ICONS;
 const PX = 64; // displayed at 14–22px, so this stays sharp on 3× screens
 
-export function GET(request) {
+// New signatures embed their icons; this endpoint serves signatures pasted
+// before that. The CDN caches each URL, so only cache misses reach here — the
+// cap stops anyone forcing endless renders with made-up colours.
+const LIMITS = [{ id: 'icon-ip-h', perIp: true, limit: 1500, windowSec: 60 * 60 }];
+
+export async function GET(request) {
   const q = new URL(request.url).searchParams;
   const set = q.get('s');
   const name = q.get('n');
@@ -16,6 +22,8 @@ export function GET(request) {
   if (!SETS.includes(set) || !NAMES.includes(name) || !/^[0-9a-f]{6}$/.test(color)) {
     return new Response('Not found', { status: 404 });
   }
+  const limited = await rateLimit(request, LIMITS);
+  if (!limited.ok) return new Response('Too many requests', { status: 429, headers: { 'retry-after': String(limited.retryAfter) } });
 
   const png = new Resvg(svg(set, name, '#' + color), { fitTo: { mode: 'width', value: PX } })
     .render()

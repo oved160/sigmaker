@@ -235,9 +235,37 @@
   const PHOTO_ANIMS = ['glow', 'orbit', 'story', 'shimmer'];
 
   // ---------- Data shaping ----------
+  // Icons: the preview draws SVG directly. Exported signatures embed each icon
+  // as a small PNG (email apps don't show SVG), so a sent signature never
+  // depends on this server — and recipients opening emails cost it nothing.
+  // PNGs are made in the background (warmIcons); until one is ready, the
+  // hosted PNG on this deployment is used as a fallback.
+  const iconPngs = new Map();  // 'set|name|#color' -> data URL
+  const iconWanted = new Set();
+
   function iconSrc(set, name, color, forExport) {
-    if (forExport && ICON_HOST) return `${ICON_HOST}/i/${set}/${color.slice(1).toLowerCase()}/${name}.png`;
+    if (forExport) {
+      const key = `${set}|${name}|${color.toLowerCase()}`;
+      if (iconPngs.has(key)) return iconPngs.get(key);
+      iconWanted.add(key);
+      if (ICON_HOST) return `${ICON_HOST}/i/${set}/${color.slice(1).toLowerCase()}/${name}.png`;
+    }
     return 'data:image/svg+xml,' + encodeURIComponent(iconSvg(set, name, color));
+  }
+
+  function renderIconPng(key) {
+    const [set, name, color] = key.split('|');
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        const c = document.createElement('canvas');
+        c.width = c.height = 64;
+        c.getContext('2d').drawImage(img, 0, 0, 64, 64);
+        resolve(c.toDataURL('image/png'));
+      };
+      img.onerror = reject;
+      img.src = 'data:image/svg+xml,' + encodeURIComponent(iconSvg(set, name, color));
+    });
   }
 
   function model(s, forExport = false) {
@@ -602,7 +630,25 @@
   const preview = $('#preview');
   const status = $('#status');
 
-  // forExport: icons point at hosted PNGs instead of inline SVG previews.
+  // Render any icon PNGs the exported signature needs that aren't made yet.
+  async function warmIcons() {
+    iconWanted.clear();
+    signatureHtml(true);
+    const missing = [...iconWanted].filter(k => !iconPngs.has(k));
+    await Promise.all(missing.map(async k => {
+      try { iconPngs.set(k, await renderIconPng(k)); } catch { /* hosted fallback stays */ }
+    }));
+  }
+  let warmTimer = 0;
+  const scheduleWarmIcons = () => { clearTimeout(warmTimer); warmTimer = setTimeout(warmIcons, 300); };
+
+  // Export markup with every icon embedded.
+  async function exportHtml() {
+    await warmIcons();
+    return signatureHtml(true);
+  }
+
+  // forExport: icons as embedded PNGs instead of inline SVG previews.
   function signatureHtml(forExport = false) {
     const m = model(state, forExport);
     const tpl = TEMPLATES[state.template] || TEMPLATES.classic;
@@ -620,6 +666,7 @@
     preview.innerHTML = hasContent()
       ? signatureHtml()
       : '<p class="sig-empty">Start typing on the left — your signature will appear here.</p>';
+    scheduleWarmIcons();
     syncPhotoUI();
     syncCardUI();
     syncAnim();
@@ -1000,7 +1047,11 @@
     setUploadStatus('Loading the image from your link…');
     try {
       if (!/^https?:$/.test(location.protocol)) throw new Error('Image links can only be processed on the live site.');
-      const res = await fetch('/api/image?url=' + encodeURIComponent(url));
+      const res = await fetch('/api/image', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ url }),
+      });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.image) throw new Error(data.error || 'Couldn’t load that image.');
       const orig = await makeOriginal(data.image);
@@ -1093,7 +1144,11 @@
     setCardStatus('Reading your website…');
     try {
       if (!/^https?:$/.test(location.protocol)) throw new Error('Preview cards only work on the live site.');
-      const res = await fetch('/api/preview?url=' + encodeURIComponent(site));
+      const res = await fetch('/api/preview', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ url: site }),
+      });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || `Couldn’t read that website (${res.status}).`);
       const image = data.image ? await cropCardImage(data.image).catch(() => '') : '';
@@ -1258,21 +1313,27 @@
     flash.t = setTimeout(() => { status.textContent = ''; }, 3500);
   }
 
-  async function copyRich() {
-    if (!hasContent()) return flash('Add some details first.');
-    const html = signatureHtml(true);
+  const toPlain = html => {
     const tmp = document.createElement('div');
     tmp.innerHTML = html;
-    const plain = tmp.cloneNode(true);
-    plain.querySelectorAll('img[alt]').forEach(img => { if (img.alt) img.replaceWith(img.alt); });
+    tmp.querySelectorAll('img[alt]').forEach(img => { if (img.alt) img.replaceWith(img.alt); });
+    return tmp.innerText;
+  };
+
+  async function copyRich() {
+    if (!hasContent()) return flash('Add some details first.');
     try {
       if (window.ClipboardItem && navigator.clipboard?.write) {
+        // Clipboard items take promises, so the copy still counts as part of the click.
+        const html = exportHtml();
         await navigator.clipboard.write([new ClipboardItem({
-          'text/html': new Blob([html], { type: 'text/html' }),
-          'text/plain': new Blob([plain.innerText], { type: 'text/plain' }),
+          'text/html': html.then(h => new Blob([h], { type: 'text/html' })),
+          'text/plain': html.then(h => new Blob([toPlain(h)], { type: 'text/plain' })),
         })]);
       } else {
         // Older browsers: select an off-screen copy of the export markup.
+        const tmp = document.createElement('div');
+        tmp.innerHTML = await exportHtml();
         tmp.style.cssText = 'position:fixed;left:-9999px;top:0;';
         document.body.appendChild(tmp);
         const range = document.createRange();
@@ -1284,6 +1345,7 @@
         sel.removeAllRanges();
         tmp.remove();
       }
+      track('export');
       flash('Signature copied — paste it into your email client’s signature settings.');
     } catch {
       flash('Couldn’t access the clipboard. Try selecting the preview and copying manually.');
@@ -1293,15 +1355,18 @@
   async function copyHtml() {
     if (!hasContent()) return flash('Add some details first.');
     try {
-      await navigator.clipboard.writeText(signatureHtml(true));
+      await navigator.clipboard.writeText(await exportHtml());
+      track('export');
       flash('HTML source copied.');
     } catch {
       flash('Couldn’t access the clipboard in this browser.');
     }
   }
 
-  function download() {
+  async function download() {
     if (!hasContent()) return flash('Add some details first.');
+    const sig = await exportHtml();
+    track('export');
     const doc = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1311,7 +1376,7 @@
 </head>
 <body style="margin:0;padding:24px;background:#FFFFFF;">
 <!-- Signature start -->
-${signatureHtml(true)}
+${sig}
 <!-- Signature end -->
 </body>
 </html>`;
@@ -1325,6 +1390,31 @@ ${signatureHtml(true)}
     a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
     flash('Downloaded.');
+  }
+
+  // ---------- Anonymous usage counts ----------
+  // Only "someone visited today" and "a signature was exported" are counted, as
+  // daily totals — no cookies, no identifiers. Browsers sending Do Not Track or
+  // Global Privacy Control aren't counted at all.
+  const noTrack = navigator.globalPrivacyControl === true || navigator.doNotTrack === '1';
+  const tracked = new Set();
+  function track(event) {
+    if (noTrack || tracked.has(event) || !/^https?:$/.test(location.protocol)) return;
+    tracked.add(event);
+    fetch('/api/track', {
+      method: 'POST',
+      keepalive: true,
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ event }),
+    }).catch(() => {});
+  }
+  function trackVisit() {
+    const today = new Date().toISOString().slice(0, 10);
+    try {
+      if (localStorage.getItem('sigmaker:last-visit') === today) return;
+      localStorage.setItem('sigmaker:last-visit', today);
+    } catch { /* storage blocked: count this page view */ }
+    track('visit');
   }
 
   // ---------- Init ----------
@@ -1394,8 +1484,8 @@ ${signatureHtml(true)}
         body: JSON.stringify({ message, email, kind: fbKind }),
       });
       const data = await res.json().catch(() => ({}));
-      // Only a response carrying the saved file's URL counts as sent.
-      if (!res.ok || !data.url) throw new Error(data.error || 'Couldn’t send your feedback. Please try again.');
+      // Only a response confirming the save counts as sent.
+      if (!res.ok || !data.saved) throw new Error(data.error || 'Couldn’t send your feedback. Please try again.');
       fbForm.reset();
       setFbStatus('Thank you! Your feedback was sent.', 'ok');
       fbSend.textContent = 'Sent';
@@ -1417,6 +1507,7 @@ ${signatureHtml(true)}
   setMoreOpen(PROFILES.some(p => !p.primary && String(state[p.key] || '').trim()));
   moreBtn.addEventListener('click', () => setMoreOpen($('#moreProfileFields').hidden));
 
+  trackVisit();
   if (state.siteCard) fetchCard();
   // Saved photo state: older saves kept a hosted URL in the link field — treat
   // it like any pasted link (re-embedded below).
@@ -1424,6 +1515,7 @@ ${signatureHtml(true)}
   if (String(state.photo || '').trim() && state.photoFrom !== String(state.photo).trim()) importPhotoLink();
 
   $('#reset').addEventListener('click', () => {
+    if (!confirm('Clear all your details and photo? This can’t be undone.')) return;
     clearPhoto();
     cardSeq++;
     setCardStatus('');

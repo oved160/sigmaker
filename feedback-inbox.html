@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="robots" content="noindex, nofollow" />
-  <title>Feedback inbox — SigMaker</title>
+  <title>Dashboard — SigMaker</title>
   <link rel="icon" href="favicon.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="styles.css" />
 </head>
@@ -30,12 +30,14 @@
 
     <section id="list" hidden>
       <div class="inbox-head">
-        <h1>Feedback <span class="inbox-count" id="count"></span></h1>
+        <h1>Dashboard</h1>
         <div class="inbox-actions">
           <button type="button" class="btn small" id="refresh">Refresh</button>
           <button type="button" class="link-btn" id="logout">Lock</button>
         </div>
       </div>
+      <section class="usage" id="usage"></section>
+      <h2 class="inbox-sub">Messages <span class="inbox-count" id="count"></span></h2>
       <div id="items"></div>
     </section>
 

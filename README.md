@@ -28,9 +28,21 @@ Email apps strip CSS/JS animation but play animated GIFs, so the optional photo 
 - **Pulsing button:** the call-to-action button can gently brighten twice (arrow nudging) every few seconds — an image of the button (~19 KB) with a solid fill and transparent rounded corners, linked like the regular button.
 - Other text is never turned into an image — it can't match real text or follow dark mode.
 
+## Usage counts
+
+`api/track.js` counts two anonymous events as daily totals in Upstash Redis: `visit` (once per browser per day, deduped with a date in localStorage) and `export` (a signature copied or downloaded, once per visit). No cookies, IPs or identifiers; browsers sending Do Not Track / Global Privacy Control aren't counted. Totals and a 14-day chart appear in the private `/feedback-inbox` dashboard. Without Upstash connected, tracking is a no-op.
+
+## Security notes
+
+- Link fetching (`api/_fetch.js`): public http(s) hosts on ports 80/443 only; the public-IP check runs inside the connection's own DNS lookup (undici `Agent`), so there's no DNS-rebinding gap; redirects re-checked; time and size capped. Links are sent in POST bodies, never query strings, so they stay out of access logs.
+- All endpoints that write or fetch require a same-origin `Origin` header and are rate limited per network (`api/_ratelimit.js`, salted-hash keys; shared via Upstash when connected).
+- The dashboard requires `FEEDBACK_KEY` (≥ 16 characters) in a header, compared in constant time.
+- Headers: strict CSP (self only, no inline scripts), HSTS, `X-Frame-Options: DENY`, `nosniff`, `no-referrer`, COOP.
+- User input in the signature is HTML-escaped; the dashboard renders feedback with `textContent` only.
+
 ## Contact icons
 
-Icon artwork lives in `icons.js` (Tabler Icons, MIT) and is shared by the page and `api/icon.js`. The preview draws the SVG directly; exported signatures point at `/i/<set>/<hex>/<name>.png`, which `api/icon.js` renders to PNG with resvg (email clients don't support SVG) and the CDN caches forever. Signatures therefore depend on the production domain staying public and stable.
+Icon artwork lives in `icons.js` (Tabler Icons, MIT). The preview draws the SVG directly; exported signatures embed each icon as a small PNG rendered in the browser, so sent signatures never load anything from this server. `api/icon.js` (resvg, CDN-cached, rate limited) still serves `/i/<set>/<hex>/<name>.png` for signatures created before icons were embedded.
 
 ## Deploy to Vercel
 

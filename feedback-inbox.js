@@ -44,7 +44,45 @@
     return node;
   }
 
+  // Usage: all-time and 30-day totals, plus a bar per day for the last 14 days.
+  function renderUsage(stats) {
+    const host = $('#usage');
+    host.replaceChildren();
+    if (!stats) {
+      host.append(el('p', { className: 'inbox-empty', textContent: 'Usage counts start once Upstash Redis is connected in Vercel (Storage → Marketplace → Upstash).' }));
+      return;
+    }
+    if (stats.error) {
+      host.append(el('p', { className: 'inbox-empty', textContent: 'Couldn’t load usage counts right now.' }));
+      return;
+    }
+    const sum = key => stats.days.reduce((n, d) => n + d[key], 0);
+    const tile = (label, value, sub) => el('div', { className: 'usage-tile' },
+      el('div', { className: 'usage-value', textContent: value.toLocaleString() }),
+      el('div', { className: 'usage-label', textContent: label }),
+      el('div', { className: 'usage-sub', textContent: sub }));
+    host.append(el('div', { className: 'usage-tiles' },
+      tile('Visits', stats.total.visit, `${sum('visit').toLocaleString()} in the last 30 days`),
+      tile('Signatures created', stats.total.export, `${sum('export').toLocaleString()} in the last 30 days`)));
+
+    const recent = stats.days.slice(-14);
+    const max = Math.max(1, ...recent.map(d => d.visit), ...recent.map(d => d.export));
+    const chart = el('div', { className: 'usage-chart', role: 'img', ariaLabel: 'Visits and signatures per day, last 14 days' });
+    for (const d of recent) {
+      const day = new Date(d.date + 'T12:00:00');
+      const bar = (cls, v) => { const b = el('span', { className: `bar ${cls}` }); b.style.height = `${(v / max) * 100}%`; return b; };
+      chart.append(el('div', { className: 'usage-day', title: `${day.toLocaleDateString()}: ${d.visit} visits, ${d.export} signatures` },
+        el('div', { className: 'usage-bars' }, bar('bar-visit', d.visit), bar('bar-export', d.export)),
+        el('div', { className: 'usage-date', textContent: day.toLocaleDateString(undefined, { day: 'numeric', month: 'numeric' }) })));
+    }
+    const legend = el('p', { className: 'usage-legend' }, 'Last 14 days: ',
+      el('span', { className: 'dot dot-visit' }), 'visits',
+      el('span', { className: 'dot dot-export' }), 'signatures');
+    host.append(legend, chart);
+  }
+
   function render(data) {
+    renderUsage(data.stats);
     const host = $('#items');
     host.replaceChildren();
     $('#count').textContent = `(${data.total})`;

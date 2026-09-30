@@ -46,18 +46,19 @@ function parseMeta(html) {
   };
 }
 
-export async function GET(request) {
+export async function POST(request) {
   const origin = request.headers.get('origin');
   const host = request.headers.get('x-forwarded-host') || request.headers.get('host');
-  // Same-origin GETs may omit Origin; reject only explicit cross-site calls.
-  if (origin) {
-    try { if (new URL(origin).host !== host) return json({ error: 'Forbidden' }, 403); } catch { return json({ error: 'Forbidden' }, 403); }
+  try {
+    if (!origin || new URL(origin).host !== host) return json({ error: 'Forbidden' }, 403);
+  } catch {
+    return json({ error: 'Forbidden' }, 403);
   }
-  if (request.headers.get('sec-fetch-site') === 'cross-site') return json({ error: 'Forbidden' }, 403);
 
-  const target = new URL(request.url).searchParams.get('url') || '';
+  // The link comes in the body, not the query string, so it never lands in access logs.
+  const { url: target = '' } = await request.json().catch(() => ({}));
   let pageUrl;
-  try { pageUrl = new URL(target); } catch { return json({ error: 'Enter a valid website address.' }, 400); }
+  try { pageUrl = new URL(String(target)); } catch { return json({ error: 'Enter a valid website address.' }, 400); }
 
   const limited = await rateLimit(request, LIMITS);
   if (!limited.ok) return json({ error: 'Too many previews — please try again later.' }, 429);
@@ -78,7 +79,7 @@ export async function GET(request) {
         const kind = sniffImage(img.body);
         if (kind && IMAGE_TYPES.includes(kind)) image = `data:${kind};base64,${img.body.toString('base64')}`;
       } catch (err) {
-        console.warn('Preview image fetch failed:', err.message);
+        console.warn('Preview image fetch failed');
       }
     }
 
@@ -90,7 +91,7 @@ export async function GET(request) {
     });
   } catch (err) {
     if (err instanceof PreviewError) return json({ error: err.message }, 422);
-    console.error('Preview failed:', err);
+    console.error('Preview failed:', err?.name || 'error');
     const timedOut = err?.name === 'TimeoutError' || err?.name === 'AbortError';
     return json({ error: timedOut ? 'The website took too long to answer.' : 'Couldn’t read that website.' }, 502);
   }

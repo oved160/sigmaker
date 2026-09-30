@@ -1,9 +1,14 @@
-import dns from 'node:dns/promises';
+import dns from 'node:dns';
 import net from 'node:net';
+import { Agent, fetch } from 'undici';
 
 // Fetching user-supplied URLs safely: only public http(s) hosts on standard
 // ports, every redirect hop re-checked, private/internal IPs rejected, and
 // time and size capped. Shared by /api/preview and /api/image.
+//
+// The public-IP check happens inside the connection's own DNS lookup, so the
+// address that was checked is the address connected to (no DNS-rebinding gap
+// between a check and a second lookup).
 
 const TIMEOUT_MS = 6000;
 const UA = 'Mozilla/5.0 (compatible; SigMakerPreview/1.0; +https://sigmaker-silk.vercel.app)';
@@ -20,17 +25,29 @@ function isPrivateIp(ip) {
   }
   const v6 = ip.toLowerCase();
   if (v6.startsWith('::ffff:')) return isPrivateIp(v6.slice(7));
-  return v6 === '::' || v6 === '::1' || /^f[cd]/.test(v6) || /^fe[89ab]/.test(v6);
+  return v6 === '::' || v6 === '::1' || /^f[cd]/.test(v6) || /^fe[89ab]/.test(v6) || v6.startsWith('64:ff9b:');
 }
 
-async function assertPublic(url) {
+// DNS lookup used for every connection: resolves, then refuses private addresses.
+function publicLookup(hostname, options, callback) {
+  dns.lookup(hostname, { all: true }, (err, addrs) => {
+    if (err) return callback(new PreviewError('Couldn’t find that website.'));
+    if (!addrs.length || addrs.some(a => isPrivateIp(a.address))) {
+      return callback(new PreviewError('That address isn’t a public website.'));
+    }
+    if (options && options.all) return callback(null, addrs);
+    callback(null, addrs[0].address, addrs[0].family);
+  });
+}
+const agent = new Agent({ connect: { lookup: publicLookup }, connections: 16 });
+
+function assertAllowed(url) {
   if (!/^https?:$/.test(url.protocol)) throw new PreviewError('Only http(s) links are supported.');
   if (url.port && url.port !== '80' && url.port !== '443') throw new PreviewError('That link uses an unsupported port.');
   if (url.username || url.password) throw new PreviewError('Links with passwords aren’t supported.');
+  // Literal IPs skip DNS, so check them here.
   const host = url.hostname.replace(/^\[|\]$/g, '');
-  const addrs = net.isIP(host) ? [{ address: host }] : await dns.lookup(host, { all: true }).catch(() => []);
-  if (!addrs.length) throw new PreviewError('Couldn’t find that website.');
-  if (addrs.some(a => isPrivateIp(a.address))) throw new PreviewError('That address isn’t a public website.');
+  if (net.isIP(host) && isPrivateIp(host)) throw new PreviewError('That address isn’t a public website.');
 }
 
 async function readCapped(res, max) {
@@ -51,12 +68,20 @@ async function readCapped(res, max) {
 export async function safeFetch(rawUrl, accept, max) {
   let url = new URL(rawUrl);
   for (let hop = 0; hop < 4; hop++) {
-    await assertPublic(url);
-    const res = await fetch(url, {
-      redirect: 'manual',
-      signal: AbortSignal.timeout(TIMEOUT_MS),
-      headers: { 'user-agent': UA, accept },
-    });
+    assertAllowed(url);
+    let res;
+    try {
+      res = await fetch(url, {
+        dispatcher: agent,
+        redirect: 'manual',
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+        headers: { 'user-agent': UA, accept },
+      });
+    } catch (err) {
+      // undici wraps connection errors ("fetch failed"); surface our own message.
+      if (err?.cause instanceof PreviewError) throw err.cause;
+      throw err;
+    }
     if ([301, 302, 303, 307, 308].includes(res.status)) {
       const loc = res.headers.get('location');
       if (!loc) throw new PreviewError('The website redirected nowhere.');

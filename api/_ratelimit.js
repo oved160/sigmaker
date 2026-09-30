@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { redis, redisConfigured } from './_redis.js';
 
 // Fixed-window counters for upload abuse protection.
 //
@@ -7,20 +8,11 @@ import { createHash } from 'node:crypto';
 // limits are shared across every function instance. Without it they fall back
 // to per-instance memory: weaker, but still stops a single burst.
 
-const REDIS_URL = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
-const REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
-
 const memory = new Map(); // key -> { count, resetAt }
 
 async function incrRedis(key, windowSec) {
-  const res = await fetch(`${REDIS_URL}/pipeline`, {
-    method: 'POST',
-    headers: { authorization: `Bearer ${REDIS_TOKEN}`, 'content-type': 'application/json' },
-    body: JSON.stringify([['INCR', key], ['EXPIRE', key, String(windowSec), 'NX']]),
-  });
-  if (!res.ok) throw new Error(`Redis ${res.status}`);
-  const [incr] = await res.json();
-  return Number(incr.result);
+  const [count] = await redis([['INCR', key], ['EXPIRE', key, String(windowSec), 'NX']]);
+  return Number(count);
 }
 
 function incrMemory(key, windowSec) {
@@ -38,7 +30,7 @@ function incrMemory(key, windowSec) {
 }
 
 async function incr(key, windowSec) {
-  if (REDIS_URL && REDIS_TOKEN) {
+  if (redisConfigured()) {
     try {
       return await incrRedis(key, windowSec);
     } catch (err) {

@@ -642,3 +642,32 @@ input[aria-invalid="true"], textarea[aria-invalid="true"] { border-color: #D9B98
 .mail.is-dark .sig-out img { filter: invert(1) hue-rotate(180deg); }
 @media (max-width: 520px) { .anim-seg { flex-wrap: wrap; } .anim-seg .seg-btn { flex: 1 1 30%; } }
 .pulse-check { margin-top: 10px; font-size: 13.5px; }
+
+/* Inbox: usage */
+.inbox-sub { font: 400 22px/1.2 var(--serif); margin: 28px 0 4px; }
+.usage-tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
+.usage-tile { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 18px; }
+.usage-value { font: 400 34px/1.1 var(--serif); }
+.usage-label { font-weight: 500; margin-top: 4px; }
+.usage-sub { color: var(--muted); font-size: 13px; }
+.usage-legend { color: var(--muted); font-size: 13px; margin: 18px 0 8px; display: flex; align-items: center; gap: 6px; }
+.dot { display: inline-block; width: 10px; height: 10px; border-radius: 3px; }
+.dot-visit, .bar-visit { background: #CFC7BA; }
+.dot-export, .bar-export { background: #4A6B5D; }
+.usage-chart { display: grid; grid-template-columns: repeat(14, 1fr); gap: 6px; align-items: end; height: 140px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 12px 8px; }
+.usage-day { display: flex; flex-direction: column; align-items: center; height: 100%; }
+.usage-bars { flex: 1; width: 100%; display: flex; align-items: flex-end; justify-content: center; gap: 2px; }
+.bar { width: 40%; min-height: 1px; border-radius: 3px 3px 0 0; }
+.usage-date { font-size: 10.5px; color: var(--muted); margin-top: 4px; }
+
+/* Privacy page */
+.doc { max-width: 680px; margin: 0 auto; padding: 32px 40px 72px; }
+.doc h1 { font: 400 40px/1.15 var(--serif); margin: 0 0 12px; }
+.doc h2 { font: 400 22px/1.3 var(--serif); margin: 32px 0 8px; }
+.doc p, .doc li { color: #45423D; }
+.doc ul { padding-inline-start: 20px; }
+.doc li { margin: 6px 0; }
+.doc a, .back-link { color: var(--text); text-underline-offset: 3px; }
+.doc-lead { font-size: 17px; }
+.doc-updated { color: var(--muted); font-size: 13px; margin-top: 40px; }
+@media (max-width: 520px) { .doc { padding: 24px 16px 56px; } .doc h1 { font-size: 32px; } }

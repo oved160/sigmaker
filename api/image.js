@@ -18,16 +18,19 @@ const json = (body, status = 200) =>
     headers: { 'content-type': 'application/json', 'cache-control': 'no-store' },
   });
 
-export async function GET(request) {
+export async function POST(request) {
   const origin = request.headers.get('origin');
   const host = request.headers.get('x-forwarded-host') || request.headers.get('host');
-  if (origin) {
-    try { if (new URL(origin).host !== host) return json({ error: 'Forbidden' }, 403); } catch { return json({ error: 'Forbidden' }, 403); }
+  try {
+    if (!origin || new URL(origin).host !== host) return json({ error: 'Forbidden' }, 403);
+  } catch {
+    return json({ error: 'Forbidden' }, 403);
   }
-  if (request.headers.get('sec-fetch-site') === 'cross-site') return json({ error: 'Forbidden' }, 403);
 
+  // The link comes in the body, not the query string, so it never lands in access logs.
+  const { url = '' } = await request.json().catch(() => ({}));
   let target;
-  try { target = new URL(new URL(request.url).searchParams.get('url') || ''); } catch { return json({ error: 'Enter a valid image link.' }, 400); }
+  try { target = new URL(String(url)); } catch { return json({ error: 'Enter a valid image link.' }, 400); }
 
   const limited = await rateLimit(request, LIMITS);
   if (!limited.ok) return json({ error: 'Too many requests — please try again later.' }, 429);
