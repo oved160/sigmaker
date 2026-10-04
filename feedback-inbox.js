@@ -4,7 +4,7 @@
   // The password lives only in this tab's sessionStorage and is sent as a header.
   const KEY_STORE = 'sigmaker:inbox-key';
   const $ = sel => document.querySelector(sel);
-  const KIND = { idea: 'Idea', bug: 'Something’s broken', other: 'Other' };
+  const KIND = { idea: 'Idea', bug: 'Bug', other: 'Other' };
 
   const getKey = () => { try { return sessionStorage.getItem(KEY_STORE) || ''; } catch { return ''; } };
   const setKey = v => { try { v ? sessionStorage.setItem(KEY_STORE, v) : sessionStorage.removeItem(KEY_STORE); } catch { /* ignore */ } };
@@ -104,7 +104,7 @@
       const card = el('article', { className: 'inbox-card' },
         el('div', { className: 'inbox-meta' },
           el('span', { className: `inbox-kind kind-${item.kind || 'other'}`, textContent: KIND[item.kind] || 'Other' }),
-          el('time', { dateTime: when.toISOString(), textContent: when.toLocaleString() }),
+          el('time', { dateTime: when.toISOString(), textContent: when.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) }),
           del),
         el('p', { className: 'inbox-msg', dir: 'auto', textContent: item.message || '' }),
         item.email ? el('a', { className: 'inbox-email', href: `mailto:${item.email}`, textContent: `Reply to ${item.email}` }) : null);
