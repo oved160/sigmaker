@@ -240,12 +240,17 @@
   // depends on this server — and recipients opening emails cost it nothing.
   // PNGs are made in the background (warmIcons); until one is ready, the
   // hosted PNG on this deployment is used as a fallback.
-  const iconPngs = new Map();  // 'set|name|#color' -> data URL
+  //
+  // Outlook mode: classic Outlook for Windows shows embedded images at their
+  // real pixel size and ignores the size the HTML asks for, so every image is
+  // redrawn at exactly its display size (px). Elsewhere icons are 64px for
+  // sharpness on high-density screens.
+  const iconPngs = new Map();  // 'set|name|#color|px' -> data URL
   const iconWanted = new Set();
 
-  function iconSrc(set, name, color, forExport) {
+  function iconSrc(set, name, color, forExport, px = 64) {
     if (forExport) {
-      const key = `${set}|${name}|${color.toLowerCase()}`;
+      const key = `${set}|${name}|${color.toLowerCase()}|${px}`;
       if (iconPngs.has(key)) return iconPngs.get(key);
       iconWanted.add(key);
       if (ICON_HOST) return `${ICON_HOST}/i/${set}/${color.slice(1).toLowerCase()}/${name}.png`;
@@ -254,13 +259,14 @@
   }
 
   function renderIconPng(key) {
-    const [set, name, color] = key.split('|');
+    const [set, name, color, px] = key.split('|');
+    const size = Number(px) || 64;
     return new Promise((resolve, reject) => {
       const img = new Image();
       img.onload = () => {
         const c = document.createElement('canvas');
-        c.width = c.height = 64;
-        c.getContext('2d').drawImage(img, 0, 0, 64, 64);
+        c.width = c.height = size;
+        c.getContext('2d').drawImage(img, 0, 0, size, size);
         resolve(c.toDataURL('image/png'));
       };
       img.onerror = reject;
@@ -268,7 +274,10 @@
     });
   }
 
-  function model(s, forExport = false) {
+  // mode: false (live preview) | 'export' | 'outlook' (exact-size images, no GIFs)
+  function model(s, mode = false) {
+    const forExport = !!mode;
+    const outlook = mode === 'outlook';
     const accent = isHex(s.accent) ? s.accent : '#2C2C2C';
     const fs = Number(s.fontSize) || 13;
     const photoSize = Math.min(120, Math.max(48, Number(s.photoSize) || 72));
@@ -295,7 +304,8 @@
 
     return {
       iconStyle, iconSet,
-      icon: name => iconSrc(iconSet, name, accent, forExport),
+      outlook,
+      icon: (name, size) => iconSrc(iconSet, name, accent, forExport, outlook ? size : 64),
       dir, rtl: dir === 'rtl',
       photoAnim: PHOTO_ANIMS.includes(s.photoAnim) ? s.photoAnim : 'none',
       ctaPulse: !!s.ctaPulse,
@@ -366,8 +376,10 @@
   // Contact icons scale with the text; badges carry their own padding so run a bit larger.
   const iconSize = m => m.fs + (m.iconSet === 'badge' ? 5 : 2);
 
-  function iconImg(m, name, size = iconSize(m), alt = '') {
-    return `<img src="${esc(m.icon(name))}" width="${size}" height="${size}" alt="${esc(alt)}" style="display:inline-block;width:${size}px;height:${size}px;border:0;vertical-align:middle;" />`;
+  // block: for icons alone in a table cell. Avoids zero line-heights, which
+  // Outlook's Word engine treats as an exact height and clips images with.
+  function iconImg(m, name, size = iconSize(m), alt = '', block = false) {
+    return `<img src="${esc(m.icon(name, size))}" width="${size}" height="${size}" alt="${esc(alt)}" style="display:${block ? 'block' : 'inline-block'};width:${size}px;height:${size}px;border:0;vertical-align:middle;" />`;
   }
 
   function contactValue(m, c, color = TEXT) {
@@ -379,7 +391,7 @@
     if (!m.contacts.length) return '';
     if (m.iconSet) {
       return `<table ${TABLE}>${m.contacts.map(c => `<tr>
-        <td valign="middle" style="padding:2px 0;line-height:0;">${iconImg(m, c.icon)}</td>${spacer(8)}
+        <td valign="middle" style="padding:2px 0;">${iconImg(m, c.icon, iconSize(m), '', true)}</td>${spacer(8)}
         <td valign="middle" style="padding:2px 0;font-size:${m.fs}px;line-height:1.5;">${contactValue(m, c)}</td>
       </tr>`).join('')}</table>`;
     }
@@ -405,7 +417,7 @@
   function socialIcons(m) {
     const size = m.iconSet === 'badge' ? 24 : 20;
     const cells = m.socials.map(s =>
-      `<td style="line-height:0;"><a href="${esc(s.href)}" style="text-decoration:none;">${iconImg(m, s.icon, size, s.label)}</a></td>`
+      `<td valign="middle"><a href="${esc(s.href)}" style="text-decoration:none;display:block;">${iconImg(m, s.icon, size, s.label, true)}</a></td>`
     ).join(spacer(8));
     return `<table ${tableWith('margin-top:10px;')}><tr>${cells}</tr></table>`;
   }
@@ -425,6 +437,11 @@
 
   function photoImg(m, size = m.photoSize) {
     if (!m.photo) return '';
+    // Outlook: the still photo, redrawn at exactly the displayed size.
+    if (m.outlook) {
+      const src = m.photo.startsWith('data:image/') ? fitImage(m.photo, size, size) : m.photo;
+      return `<img src="${esc(src)}" width="${size}" height="${size}" alt="${esc(m.name || 'Photo')}" style="display:block;width:${size}px;height:${size}px;border:0;" />`;
+    }
     // Animated photo (GIF): needs the embedded image, since canvas can't read
     // pixels from other sites. Until it's ready the still photo is used.
     if (m.photoAnim !== 'none' && m.photo.startsWith('data:image/')) {
@@ -441,12 +458,12 @@
 
   function ctaButton(m) {
     if (!m.cta) return '';
-    if (m.ctaPulse) {
+    if (m.ctaPulse && !m.outlook) {
       const gif = requestAnim({
         kind: 'button', text: m.cta.text, family: m.font, sizePx: m.fs, color: m.accent, rtl: m.rtl,
       });
       if (gif) {
-        return `<table ${tableWith('margin-top:12px;')}><tr><td style="line-height:0;"><a href="${esc(m.cta.href)}" style="text-decoration:none;"><img src="${gif.dataUrl}" width="${gif.width}" height="${gif.height}" alt="${esc(m.cta.text)}" style="display:block;width:${gif.width}px;height:${gif.height}px;border:0;" /></a></td></tr></table>`;
+        return `<table ${tableWith('margin-top:12px;')}><tr><td><a href="${esc(m.cta.href)}" style="text-decoration:none;display:block;"><img src="${gif.dataUrl}" width="${gif.width}" height="${gif.height}" alt="${esc(m.cta.text)}" style="display:block;width:${gif.width}px;height:${gif.height}px;border:0;" /></a></td></tr></table>`;
       }
     }
     return `<table ${tableWith('margin-top:12px;')}><tr><td style="background:${m.accent};border-radius:6px;"><a href="${esc(m.cta.href)}" style="display:inline-block;padding:8px 16px;color:#FFFFFF;font-size:${m.fs}px;font-weight:bold;text-decoration:none;">${txt(m.cta.text)} ${arrow(m)}</a></td></tr></table>`;
@@ -461,7 +478,7 @@
     const c = m.siteCard;
     if (!c) return '';
     const img = c.image
-      ? `<tr><td style="padding:0;line-height:0;"><a href="${esc(c.href)}" style="text-decoration:none;"><img src="${esc(c.image)}" width="${CARD_W}" height="${CARD_H}" alt="${esc(c.title || c.host)}" style="display:block;width:${CARD_W}px;height:${CARD_H}px;border:0;border-radius:8px 8px 0 0;" /></a></td></tr>`
+      ? `<tr><td style="padding:0;"><a href="${esc(c.href)}" style="text-decoration:none;display:block;"><img src="${esc(m.outlook ? fitImage(c.image, CARD_W, CARD_H) : c.image)}" width="${CARD_W}" height="${CARD_H}" alt="${esc(c.title || c.host)}" style="display:block;width:${CARD_W}px;height:${CARD_H}px;border:0;border-radius:8px 8px 0 0;" /></a></td></tr>`
       : '';
     return `<table ${tableWith(`margin-top:14px;width:${CARD_W}px;border-collapse:separate;border:1px solid #E5E0D8;border-radius:8px;`)} width="${CARD_W}">
       ${img}
@@ -566,7 +583,7 @@
             <table ${TABLE}>
               ${m.contacts.map(c => `<tr>
                 ${m.iconSet
-                  ? `<td style="padding:2px 0;line-height:0;" valign="middle">${iconImg(m, c.icon)}</td>${spacer(10)}`
+                  ? `<td style="padding:2px 0;" valign="middle">${iconImg(m, c.icon, iconSize(m), '', true)}</td>${spacer(10)}`
                   : m.iconStyle === 'text'
                     ? `<td style="padding:0 0 2px;font-size:${m.fs - 1}px;line-height:1.6;color:${m.accent};font-weight:bold;letter-spacing:${m.rtl ? 0 : 1}px;text-transform:uppercase;" valign="top">${txt(c.word)}</td>${spacer(12)}`
                     : ''}
@@ -630,27 +647,75 @@
   const preview = $('#preview');
   const status = $('#status');
 
-  // Render any icon PNGs the exported signature needs that aren't made yet.
-  async function warmIcons() {
+  // Embedded images redrawn at an exact size (Outlook mode). Returns the
+  // resized version once made; until then the original.
+  const fitted = new Map(); // key -> data URL
+  const fitWanted = new Map(); // key -> { src, w, h }
+  const fitKey = (src, w, h) => `${w}x${h}:${src.length}:${src.slice(-48)}:${src.slice(200, 248)}`;
+
+  function fitImage(src, w, h) {
+    const key = fitKey(src, w, h);
+    if (fitted.has(key)) return fitted.get(key);
+    fitWanted.set(key, { src, w, h });
+    return src;
+  }
+
+  function renderFit({ src, w, h }) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        // Halve in steps first: one big downscale looks jagged.
+        let cur = img, cw = img.naturalWidth, ch = img.naturalHeight;
+        while (cw / 2 >= w * 2 && ch / 2 >= h * 2) {
+          const step = document.createElement('canvas');
+          step.width = cw = Math.round(cw / 2);
+          step.height = ch = Math.round(ch / 2);
+          const sctx = step.getContext('2d');
+          sctx.imageSmoothingQuality = 'high';
+          sctx.drawImage(cur, 0, 0, cw, ch);
+          cur = step;
+        }
+        const c = document.createElement('canvas');
+        c.width = w;
+        c.height = h;
+        const ctx = c.getContext('2d');
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(cur, 0, 0, w, h);
+        resolve(src.startsWith('data:image/jpeg') ? c.toDataURL('image/jpeg', 0.92) : c.toDataURL('image/png'));
+      };
+      img.onerror = reject;
+      img.src = src;
+    });
+  }
+
+  // Make any icon PNGs / resized images an export needs that aren't made yet.
+  async function warmAssets(mode = 'export') {
     iconWanted.clear();
-    signatureHtml(true);
-    const missing = [...iconWanted].filter(k => !iconPngs.has(k));
-    await Promise.all(missing.map(async k => {
-      try { iconPngs.set(k, await renderIconPng(k)); } catch { /* hosted fallback stays */ }
-    }));
+    fitWanted.clear();
+    signatureHtml(mode);
+    const icons = [...iconWanted].filter(k => !iconPngs.has(k));
+    const fits = [...fitWanted].filter(([k]) => !fitted.has(k));
+    await Promise.all([
+      ...icons.map(async k => {
+        try { iconPngs.set(k, await renderIconPng(k)); } catch { /* hosted fallback stays */ }
+      }),
+      ...fits.map(async ([k, job]) => {
+        try { fitted.set(k, await renderFit(job)); } catch { /* original stays */ }
+      }),
+    ]);
   }
   let warmTimer = 0;
-  const scheduleWarmIcons = () => { clearTimeout(warmTimer); warmTimer = setTimeout(warmIcons, 300); };
+  const scheduleWarmIcons = () => { clearTimeout(warmTimer); warmTimer = setTimeout(() => warmAssets('export'), 300); };
 
-  // Export markup with every icon embedded.
-  async function exportHtml() {
-    await warmIcons();
-    return signatureHtml(true);
+  // Export markup with every image embedded. mode 'outlook' = exact-size images.
+  async function exportHtml(mode = 'export') {
+    await warmAssets(mode);
+    return signatureHtml(mode);
   }
 
-  // forExport: icons as embedded PNGs instead of inline SVG previews.
-  function signatureHtml(forExport = false) {
-    const m = model(state, forExport);
+  // mode: false = live preview (SVG icons), 'export' | 'outlook' = embedded PNGs.
+  function signatureHtml(mode = false) {
+    const m = model(state, mode);
     const tpl = TEMPLATES[state.template] || TEMPLATES.classic;
     // Explicit direction on the outer wrapper, so an LTR signature stays LTR in a
     // Hebrew/Arabic mail client and vice versa.
@@ -1320,12 +1385,12 @@
     return tmp.innerText;
   };
 
-  async function copyRich() {
+  async function copyRich(mode = 'export') {
     if (!hasContent()) return flash('Add some details first.');
     try {
       if (window.ClipboardItem && navigator.clipboard?.write) {
         // Clipboard items take promises, so the copy still counts as part of the click.
-        const html = exportHtml();
+        const html = exportHtml(mode);
         await navigator.clipboard.write([new ClipboardItem({
           'text/html': html.then(h => new Blob([h], { type: 'text/html' })),
           'text/plain': html.then(h => new Blob([toPlain(h)], { type: 'text/plain' })),
@@ -1333,7 +1398,7 @@
       } else {
         // Older browsers: select an off-screen copy of the export markup.
         const tmp = document.createElement('div');
-        tmp.innerHTML = await exportHtml();
+        tmp.innerHTML = await exportHtml(mode);
         tmp.style.cssText = 'position:fixed;left:-9999px;top:0;';
         document.body.appendChild(tmp);
         const range = document.createRange();
@@ -1346,7 +1411,9 @@
         tmp.remove();
       }
       track('export');
-      flash('Signature copied — paste it into your email client’s signature settings.');
+      flash(mode === 'outlook'
+        ? 'Copied for Outlook — paste it into Outlook’s signature editor (File → Options → Mail → Signatures).'
+        : 'Signature copied — paste it into your email client’s signature settings.');
     } catch {
       flash('Couldn’t access the clipboard. Try selecting the preview and copying manually.');
     }
@@ -1549,7 +1616,8 @@ ${sig}
     window.scrollTo({ top: 0 });
   }));
 
-  $('#copyRich').addEventListener('click', copyRich);
+  $('#copyRich').addEventListener('click', () => copyRich());
+  $('#copyOutlook').addEventListener('click', () => copyRich('outlook'));
   $('#copyHtml').addEventListener('click', copyHtml);
   $('#download').addEventListener('click', download);
 })();

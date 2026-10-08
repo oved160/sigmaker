@@ -42,6 +42,10 @@ Email apps strip CSS/JS animation but play animated GIFs, so the optional photo 
 - Headers: strict CSP (self only, no inline scripts), HSTS, `X-Frame-Options: DENY`, `nosniff`, `no-referrer`, COOP.
 - User input in the signature is HTML-escaped; the dashboard renders feedback with `textContent` only.
 
+## Outlook for Windows
+
+Classic Outlook for Windows (Word rendering engine) shows embedded images at their real pixel size and ignores the HTML `width`/`height`, so the 64px icons and 240px photo appeared ~3× too large there, and zero line-heights clipped images. **Copy for Outlook** exports every image redrawn at exactly its display size (icons 15–24px, photo at the chosen size, card 300×157), uses the still photo and a normal HTML button instead of GIFs, and no image sits in a zero line-height box. The regular export keeps 64px icons for sharpness elsewhere.
+
 ## Contact icons
 
 Icon artwork lives in `icons.js` (Tabler Icons, MIT). The preview draws the SVG directly; exported signatures embed each icon as a small PNG rendered in the browser, so sent signatures never load anything from this server. `api/icon.js` (resvg, CDN-cached, rate limited) still serves `/i/<set>/<hex>/<name>.png` for signatures created before icons were embedded.
